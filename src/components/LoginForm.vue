@@ -15,11 +15,11 @@ const manejarLogin = () => {
   mensajeExito.value = ''
 
   // Simulación de validación de credenciales
-  if (formulario.value.correo === 'test@correo.com' && formulario.value.password === '123456') {
+  if (formulario.value.correo === 'test@est.ucab.edu.ve.com' && formulario.value.password === '123456') {
     mensajeExito.value = '¡Bienvenido de vuelta! Redirigiendo...'
     console.log('Login exitoso')
   } else {
-    mensajeError.value = 'Correo o contraseña incorrectos. (Prueba con test@correo.com / 123456)'
+    mensajeError.value = 'Correo o contraseña incorrectos. (Prueba con test@est.ucab.edu.ve.com / 123456)'
   }
 }
 </script>
@@ -44,7 +44,7 @@ const manejarLogin = () => {
           type="email" 
           id="correo-login" 
           v-model="formulario.correo" 
-          placeholder="estudiante@correo.com" 
+          placeholder="estudiante@est.ucab.edu.ve.com" 
           required
         >
       </div>
