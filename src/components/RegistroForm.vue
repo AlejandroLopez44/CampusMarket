@@ -70,7 +70,7 @@ const manejarRegistro = () => {
           type="email" 
           id="correo" 
           v-model="formulario.correo" 
-          placeholder="estudiante@correo.com" 
+          placeholder="estudiante@est.ucab.edu.ve" 
           required
         >
       </div>
