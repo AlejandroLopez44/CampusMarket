@@ -113,20 +113,16 @@ async function verDetalle(p: Producto): Promise<void> {
 // ------------------------------------------------------------------
 
 /**
- * Paso 1-2 del diagrama: el estudiante pulsa "Agregar al carrito" → el sistema
+ * Paso 1-2 del diagrama: el usuario pulsa "Agregar al carrito" → el sistema
  * consulta disponibilidad en BD.
  *  • Disponible   → solicita CONFIRMACIÓN mostrando el subtotal en Bs.
  *  • Insuficiente → BLOQUEA la acción y muestra el stock actual ([Salir] / [OK]).
+ * No exige sesión: el visitante también puede llenar su carrito (se guarda en su
+ * navegador). La sesión se pide recién al generar la compra o al reseñar.
  */
 async function solicitarAgregar(): Promise<void> {
   const p = seleccionado.value
-  if (!p) return
-  if (!usuarioController.autenticado) {
-    mostrarDialogo({ titulo: 'Inicia sesión', mensaje: 'Debes iniciar sesión para agregar productos a tu carrito.',
-      tipo: 'info', botones: [{ texto: 'Cancelar', valor: 'no', estilo: 'secundario' }, { texto: 'Ir a Mi cuenta', valor: 'cuenta' }],
-      alAccion: v => v === 'cuenta' && emit('navegar', 'cuenta') })
-    return
-  }
+  if (!p || !carritoController.habilitado) return // El administrador no tiene carrito
   if (!Number.isInteger(cantidad.value) || cantidad.value < 1) {
     mostrarToast('Indique una cantidad válida (mínimo 1).')
     return
@@ -333,13 +329,21 @@ const claseCampo = (campo: string) =>
             <p class="text-2xl font-bold text-emerald-600">{{ formatearBs(seleccionado.precio) }}</p>
             <p class="text-sm text-slate-500">Disponibles: {{ seleccionado.stock }}</p>
 
-            <label class="mt-2 text-sm font-medium" for="cantidad">Cantidad deseada</label>
-            <input id="cantidad" v-model.number="cantidad" type="number" min="1" max="99" class="w-28 rounded-lg border border-slate-300 px-3 py-2" />
-            <p class="text-sm text-slate-500">Subtotal: {{ formatearBs(seleccionado.precio * (cantidad || 0)) }}</p>
+            <!-- Visitante y estudiante: elegir cantidad y agregar al carrito (HU-04) -->
+            <template v-if="!esAdmin">
+              <label class="mt-2 text-sm font-medium" for="cantidad">Cantidad deseada</label>
+              <input id="cantidad" v-model.number="cantidad" type="number" min="1" max="99" class="w-28 rounded-lg border border-slate-300 px-3 py-2" />
+              <p class="text-sm text-slate-500">Subtotal: {{ formatearBs(seleccionado.precio * (cantidad || 0)) }}</p>
+            </template>
+            <!-- Administrador: vista de inventario (no compra) -->
+            <p v-else :class="['mt-2 rounded-lg p-3 text-sm', seleccionado.stock <= 5 ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600']">
+              {{ seleccionado.stock === 0 ? 'Producto agotado: conviene reponer inventario.'
+                 : seleccionado.stock <= 5 ? 'Stock bajo: quedan pocas unidades.' : 'Inventario suficiente.' }}
+            </p>
 
             <div class="mt-auto flex flex-col gap-2 pt-4 sm:flex-row">
               <button class="rounded-lg bg-slate-200 px-4 py-2 font-semibold hover:bg-slate-300" @click="seleccionado = null">Volver</button>
-              <button :disabled="procesando || seleccionado.stock === 0"
+              <button v-if="!esAdmin" :disabled="procesando || seleccionado.stock === 0"
                       class="flex-1 rounded-lg bg-marca-600 px-4 py-2 font-semibold text-white hover:bg-marca-700 disabled:opacity-50"
                       @click="solicitarAgregar">Agregar al carrito</button>
             </div>

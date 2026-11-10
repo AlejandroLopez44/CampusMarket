@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import model.CompraModel.CompraPagadaEvent;
 import model.CompraModel.CompraRegistradaEvent;
 import model.UsuarioModel.UsuarioRegistradoEvent;
 
@@ -19,7 +20,7 @@ import model.UsuarioModel.UsuarioRegistradoEvent;
  * =====================================================================
  * EmailNotificationController — Servicio INTERNO de notificaciones.
  * ---------------------------------------------------------------------
- * Transversal: HU-07 (bienvenida al registrarse) · HU-05 (orden generada).
+ * Transversal: HU-07 (bienvenida al registrarse) · HU-05 (orden generada y pago simulado).
  *
  * ⚠ NO es un @RestController: no expone ningún endpoint. El frontend/usuario
  * NUNCA puede invocar el envío de correos. Solo el backend lo dispara.
@@ -75,6 +76,18 @@ public class EmailNotificationController {
         cuerpo.append("\nTotal: Bs. ").append(e.total()).append("\n\nEquipo CampusMarket");
         notificador.enviar(e.correo(), "Orden " + e.numeroOrden() + " registrada", cuerpo.toString());
         log.debug("Notificación de orden {} procesada", e.numeroOrden());
+    }
+
+    /**
+     * Confirmación del pago SIMULADO. Agregar este aviso no requirió modificar
+     * CompraController: bastó con escuchar un evento nuevo (principio abierto/cerrado).
+     */
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void alPagarCompra(CompraPagadaEvent e) {
+        notificador.enviar(e.correo(), "Pago registrado - Orden " + e.numeroOrden(),
+                "Hola " + e.nombre() + ",\n\nRegistramos el pago (simulado) de tu orden N° " + e.numeroOrden()
+                + " por Bs. " + e.total() + ". La orden quedó como \"Pagada\".\n\nEquipo CampusMarket");
     }
 }
 

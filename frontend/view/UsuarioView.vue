@@ -11,12 +11,27 @@
   =====================================================================
 -->
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { usuarioController, type Perfil, type RegistroDatos } from '../control/UsuarioClientController'
 import { ApiError } from '../control/ApiClient'
 import type { Destino } from '../control/NavegacionController'
 
-const props = defineProps<{ modo: 'acceso' | 'perfil' }>()
+/** Máximo de caracteres del teléfono, tomado del controlador para no repetir el número. */
+const MAX_TELEFONO = usuarioController.maxTelefono
+
+/**
+ * @prop modo   'acceso' (registro/login) o 'perfil' (HU-02)
+ * @prop motivo vista que el visitante intentó abrir sin sesión (p. ej. 'compra');
+ *              sirve para explicarle por qué debe iniciar sesión.
+ */
+const props = defineProps<{ modo: 'acceso' | 'perfil'; motivo?: Destino | null }>()
+
+/** Texto que explica por qué se pide iniciar sesión (o null si entró por su cuenta). */
+const textoMotivo = computed(() => ({
+  compra: 'Inicia sesión o regístrate para generar tu compra. Tu carrito se conservará.',
+  compras: 'Inicia sesión para ver tus compras.',
+  perfil: 'Inicia sesión para ver tu perfil.',
+} as Partial<Record<Destino, string>>)[props.motivo ?? 'inicio'] ?? null)
 const emit = defineEmits<{ navegar: [destino: Destino]; 'sesion-iniciada': [] }>()
 
 // =================== Acceso (registro / login) ===================
@@ -148,6 +163,8 @@ const claseCampo = (error?: string) =>
       <button :class="['border-b-4 px-4 py-2 font-bold', pestana === 'registro' ? 'border-marca-600 text-marca-600' : 'border-transparent text-slate-500']" @click="cambiarPestana('registro')">Registrarse</button>
     </div>
 
+    <!-- Por qué se pide iniciar sesión (p. ej. el visitante pulsó "Generar compra") -->
+    <p v-if="textoMotivo && !aviso" class="mb-4 rounded-lg bg-marca-50 p-3 text-sm text-marca-700">{{ textoMotivo }}</p>
     <p v-if="aviso" :class="['mb-4 rounded-lg p-3 text-sm', aviso.tipo === 'exito' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700']">{{ aviso.texto }}</p>
 
     <!-- Login -->
@@ -177,8 +194,11 @@ const claseCampo = (error?: string) =>
       </div>
       <div>
         <label class="text-sm font-medium" for="r-tel">Teléfono</label>
-        <input id="r-tel" v-model="registro.telefono" type="tel" placeholder="0414-1234567" :class="claseCampo(erroresRegistro.telefono)" />
+        <!-- maxlength impide escribir más de 12 caracteres ("0414-1234567"); inputmode muestra teclado numérico en el celular -->
+        <input id="r-tel" v-model="registro.telefono" type="tel" inputmode="tel" placeholder="0414-1234567"
+               :maxlength="MAX_TELEFONO" :class="claseCampo(erroresRegistro.telefono)" />
         <p v-if="erroresRegistro.telefono" class="text-sm text-red-600">{{ erroresRegistro.telefono }}</p>
+        <p v-else class="text-xs text-slate-500">Opcional. Códigos: 0412, 0414, 0416, 0424, 0426 o 0212.</p>
       </div>
       <div>
         <label class="text-sm font-medium" for="r-pass">Contraseña * (mín. 8 caracteres)</label>

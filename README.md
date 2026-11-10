@@ -32,16 +32,24 @@ campusmarket/
 | 01 Consultar Reseña | `GET /api/productos/{id}/resenas` | Lista vacía + "No hay reseñas disponibles para este producto" |
 | 02 Consultar Perfil | `GET /api/usuarios/perfil` | 503 + "Error al cargar la información del perfil. Intente nuevamente" |
 | 03 Agregar Producto | `POST /api/productos/validacion` → `POST /api/productos` | Solo ADMIN; valida sin guardar, confirma y persiste |
-| 04 Agregar a Carrito | `GET /api/carrito/disponibilidad` → `POST /api/carrito/items` | Verifica stock, confirma, re-verifica y guarda |
-| 05 Generar Compra | `GET /api/compras/resumen` → `POST /api/compras` | Bloqueo `FOR UPDATE`, orden "Pendiente de Pago" |
+| 04 Agregar a Carrito | `GET /api/carrito/disponibilidad` → `POST /api/carrito/items` | Verifica stock, confirma, re-verifica y guarda. Funciona sin sesión (carrito en el navegador) |
+| 05 Generar Compra | `GET /api/compras/resumen` → `POST /api/compras` | Exige sesión de estudiante. Bloqueo `FOR UPDATE`, orden "Pendiente de Pago" |
+| 05 Factura y pago simulado | `GET /api/compras/{id}/factura`, `POST /api/compras/{id}/pago-simulado` | Solo órdenes propias. El pago no pide datos: cambia el estado a "Pagada" (el pago real es de la 2.ª iteración) |
 | 06 Consultar Producto | `GET /api/productos?q=&categoria=`, `GET /api/productos/{id}` | Índice GIN pg_trgm |
-| 07 Registro de Cuenta | `POST /api/usuarios/registro` | Solo `@est.ucab.edu.ve`, BCrypt |
-| 08 Consultar Carrito | `GET /api/carrito` | Total en Bs. |
+| 07 Registro de Cuenta | `POST /api/usuarios/registro` | Solo `@est.ucab.edu.ve`, BCrypt. Teléfono opcional: 0412, 0414, 0416, 0424, 0426 o 0212 + 7 dígitos |
+| 08 Consultar Carrito | `GET /api/carrito` (estudiante), `POST /api/carrito/cotizacion` (visitante) | Total en Bs. con precios del servidor |
+| 08 Unir carritos | `POST /api/carrito/fusion` | Al iniciar sesión, el carrito del navegador se une al de la cuenta respetando el stock |
 | 09 Consultar Compras | `GET /api/compras` | Solo las órdenes de la sesión activa |
-| 10 Insertar Reseña | `POST /api/productos/{id}/resenas` | Requiere compra previa; 1 reseña por producto; máx. 500 caracteres |
+| 09 Panel del admin | `GET /api/admin/estadisticas` | Solo ADMIN: ventas, pendientes, inventario, más vendidos, ventas de 7 días, órdenes recientes y reseñas |
+| 10 Insertar Reseña | `POST /api/productos/{id}/resenas` | Solo estudiantes. Requiere compra previa; 1 reseña por producto; máx. 500 caracteres |
 | (soporte) | `POST /api/usuarios/login` y `/logout` | Sesión HTTP (cookie JSESSIONID) |
 
-El correo **no tiene endpoint**. Lo envía el backend al recibir los eventos `UsuarioRegistradoEvent` y `CompraRegistradaEvent`, después del commit y de forma asíncrona. Si no hay SMTP configurado, el mensaje solo se escribe en el log.
+**Roles:**
+- **Visitante:** ve el catálogo y las reseñas, y llena su carrito.
+- **Estudiante:** además compra, ve sus facturas y escribe reseñas.
+- **Administrador:** ve su panel de estadísticas, agrega productos y lee reseñas. No tiene carrito ni compras: el backend le responde 403.
+
+El correo **no tiene endpoint**. Lo envía el backend al recibir los eventos `UsuarioRegistradoEvent`, `CompraRegistradaEvent` y `CompraPagadaEvent`, después del commit y de forma asíncrona. Si no hay SMTP configurado, el mensaje solo se escribe en el log.
 
 ## Adaptaciones respecto al frontend previo (`../src`)
 

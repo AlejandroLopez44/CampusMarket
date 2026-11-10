@@ -43,7 +43,8 @@ CREATE TABLE usuario (
     -- Ámbito UCAB: solo correos institucionales estudiantiles (en minúsculas).
     CONSTRAINT ck_usuario_correo_ucab CHECK (correo ~ '^[a-z0-9._%+-]+@est\.ucab\.edu\.ve$'),
     CONSTRAINT ck_usuario_rol     CHECK (rol IN ('ESTUDIANTE', 'ADMINISTRADOR')),
-    CONSTRAINT ck_usuario_telefono CHECK (telefono IS NULL OR telefono ~ '^[0-9+\- ]{7,20}$')
+    -- Teléfono venezolano normalizado "0414-1234567": móviles 0412/0414/0416/0424/0426 y fijo 0212 (Gran Caracas).
+    CONSTRAINT ck_usuario_telefono CHECK (telefono IS NULL OR telefono ~ '^0(412|414|416|424|426|212)-[0-9]{7}$')
 );
 COMMENT ON TABLE usuario IS 'Cuentas de la comunidad UCAB (estudiantes y administradores).';
 

@@ -35,6 +35,12 @@ import model.ProductoModel.ProductoRepository;
  *      • Suficiente → registra la orden "Pendiente de Pago", descuenta
  *        (reserva) el inventario, vacía el carrito y devuelve el N° de orden.
  *   4. Tras el COMMIT, EmailNotificationController envía el correo (evento).
+ *   5. Se muestra la FACTURA de la orden (GET /{id}/factura).
+ *   6. Opcional: "Registrar pago (simulado)" (POST /{id}/pago-simulado) cambia
+ *      el estado a "Pagada" sin pedir datos. El pago real es de la 2.ª iteración;
+ *      la simulación permite que las ventas aparezcan en el panel del admin.
+ *
+ * Todas las operaciones son SOLO para estudiantes (el administrador no compra).
  *
  * SOLID: SRP, DIP, OCP (notificaciones por evento, no por llamada directa).
  * =====================================================================
@@ -54,21 +60,34 @@ public class CompraController {
     /** GET /api/compras/resumen — HU-05 paso 1. */
     @GetMapping("/resumen")
     ResumenCompraResponse resumen(HttpSession sesion) {
-        return compraService.resumen(sesionActiva.usuarioId(sesion));
+        return compraService.resumen(sesionActiva.exigirEstudiante(sesion));
     }
 
     /** POST /api/compras — HU-05 paso 3 (solo tras la confirmación explícita del usuario). */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     RespuestaApi<CompraResponse> generar(HttpSession sesion) {
-        CompraResponse orden = compraService.generar(sesionActiva.usuarioId(sesion));
+        CompraResponse orden = compraService.generar(sesionActiva.exigirEstudiante(sesion));
         return new RespuestaApi<>("Orden generada - N° " + orden.numeroOrden(), orden);
     }
 
     /** GET /api/compras — HU-09: historial de órdenes de la cuenta activa. */
     @GetMapping
     List<CompraResponse> historial(HttpSession sesion) {
-        return compraService.historial(sesionActiva.usuarioId(sesion));
+        return compraService.historial(sesionActiva.exigirEstudiante(sesion));
+    }
+
+    /** GET /api/compras/{id}/factura — factura de una orden propia. */
+    @GetMapping("/{id}/factura")
+    FacturaResponse factura(@PathVariable Long id, HttpSession sesion) {
+        return compraService.factura(sesionActiva.exigirEstudiante(sesion), id);
+    }
+
+    /** POST /api/compras/{id}/pago-simulado — marca la orden como "Pagada" (sin datos de pago). */
+    @PostMapping("/{id}/pago-simulado")
+    RespuestaApi<FacturaResponse> pagoSimulado(@PathVariable Long id, HttpSession sesion) {
+        FacturaResponse f = compraService.registrarPagoSimulado(sesionActiva.exigirEstudiante(sesion), id);
+        return new RespuestaApi<>("Pago simulado registrado. La orden " + f.numeroOrden() + " quedó como Pagada.", f);
     }
 }
 
@@ -81,6 +100,8 @@ interface CompraService {
     ResumenCompraResponse resumen(Long usuarioId);
     CompraResponse generar(Long usuarioId);
     List<CompraResponse> historial(Long usuarioId);
+    FacturaResponse factura(Long usuarioId, Long compraId);
+    FacturaResponse registrarPagoSimulado(Long usuarioId, Long compraId);
 }
 
 @Service
@@ -171,5 +192,36 @@ class CompraServiceImpl implements CompraService {
     @Transactional(readOnly = true)
     public List<CompraResponse> historial(Long usuarioId) {
         return compras.historialDeUsuario(usuarioId).stream().map(CompraResponse::desde).toList();
+    }
+
+    /** Factura de una orden propia. 404 si no existe o es de otro estudiante (no se revela cuál). */
+    @Override
+    @Transactional(readOnly = true)
+    public FacturaResponse factura(Long usuarioId, Long compraId) {
+        return FacturaResponse.desde(obtenerPropia(usuarioId, compraId));
+    }
+
+    /**
+     * Pago SIMULADO. La regla "solo se paga una orden pendiente" vive en la
+     * entidad (Compra.registrarPagoSimulado); aquí se traduce a un 409 legible.
+     * Tras el commit, el correo de confirmación sale por evento.
+     */
+    @Override
+    @Transactional
+    public FacturaResponse registrarPagoSimulado(Long usuarioId, Long compraId) {
+        Compra compra = obtenerPropia(usuarioId, compraId);
+        try {
+            compra.registrarPagoSimulado();
+        } catch (IllegalStateException ex) {
+            throw new NegocioException(HttpStatus.CONFLICT, ex.getMessage());
+        }
+        eventos.publishEvent(new CompraPagadaEvent(compra.getUsuario().getCorreo(), compra.getUsuario().getNombre(),
+                compra.getNumeroOrden(), compra.getTotal()));
+        return FacturaResponse.desde(compra);
+    }
+
+    private Compra obtenerPropia(Long usuarioId, Long compraId) {
+        return compras.buscarDeUsuario(compraId, usuarioId)
+                .orElseThrow(() -> new NegocioException(HttpStatus.NOT_FOUND, "La orden solicitada no existe."));
     }
 }

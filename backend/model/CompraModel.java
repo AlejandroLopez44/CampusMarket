@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import model.ProductoModel.Producto;
 import model.UsuarioModel.Usuario;
@@ -97,6 +98,20 @@ public final class CompraModel {
             this.numeroOrden = "CM-" + fecha.format(DateTimeFormatter.BASIC_ISO_DATE) + "-" + id;
         }
 
+        /**
+         * Pago SIMULADO: cambia la orden de "Pendiente de Pago" a "Pagada".
+         * No procesa dinero ni pide datos (el pago real llega en la 2.ª iteración);
+         * sirve para que las ventas cuenten en el panel del administrador.
+         * La entidad protege su ciclo de vida: solo se paga una orden pendiente.
+         * @throws IllegalStateException si la orden no está pendiente de pago
+         */
+        public void registrarPagoSimulado() {
+            if (estado != EstadoCompra.PENDIENTE_PAGO) {
+                throw new IllegalStateException("La orden " + numeroOrden + " no está pendiente de pago.");
+            }
+            this.estado = EstadoCompra.PAGADA;
+        }
+
         public Long getId() { return id; }
         public String getNumeroOrden() { return numeroOrden; }
         public Usuario getUsuario() { return usuario; }
@@ -178,8 +193,25 @@ public final class CompraModel {
         }
     }
 
+    /**
+     * Factura de una orden: datos del comprador + detalle de productos + total en Bs.
+     * Se muestra al generar la orden y desde "Mis compras". Mientras la orden esté
+     * "Pendiente de Pago", la factura indica que el pago aún no se ha registrado.
+     */
+    public record FacturaResponse(Long id, String numeroOrden, LocalDateTime fecha, String estado,
+                                  String estadoEtiqueta, String cliente, String correo, String telefono,
+                                  List<DetalleResponse> detalles, int unidades, BigDecimal total, String moneda) {
+        public static FacturaResponse desde(Compra c) {
+            List<DetalleResponse> detalles = c.getDetalles().stream().map(DetalleResponse::desde).toList();
+            return new FacturaResponse(c.getId(), c.getNumeroOrden(), c.getFecha(), c.getEstado().name(),
+                    c.getEstado().etiqueta(), c.getUsuario().getNombre(), c.getUsuario().getCorreo(),
+                    c.getUsuario().getTelefono(), detalles, detalles.stream().mapToInt(DetalleResponse::cantidad).sum(),
+                    c.getTotal(), "Bs.");
+        }
+    }
+
     // -----------------------------------------------------------------
-    // EVENTO DE DOMINIO
+    // EVENTOS DE DOMINIO
     // -----------------------------------------------------------------
 
     /**
@@ -188,6 +220,9 @@ public final class CompraModel {
      */
     public record CompraRegistradaEvent(String correo, String nombre, String numeroOrden,
                                         BigDecimal total, List<DetalleResponse> detalles) { }
+
+    /** Se publica al registrar el pago simulado de una orden (mismo mecanismo desacoplado). */
+    public record CompraPagadaEvent(String correo, String nombre, String numeroOrden, BigDecimal total) { }
 
     // -----------------------------------------------------------------
     // REPOSITORIO
@@ -204,6 +239,19 @@ public final class CompraModel {
                ORDER BY c.fecha DESC
                """)
         List<Compra> historialDeUsuario(@Param("usuarioId") Long usuarioId);
+
+        /**
+         * Una orden con su detalle y su comprador, SOLO si pertenece al estudiante
+         * indicado. Así nadie puede ver ni pagar la factura de otra persona.
+         */
+        @Query("""
+               SELECT c FROM Compra c
+               JOIN FETCH c.usuario
+               LEFT JOIN FETCH c.detalles d
+               LEFT JOIN FETCH d.producto
+               WHERE c.id = :id AND c.usuario.id = :usuarioId
+               """)
+        Optional<Compra> buscarDeUsuario(@Param("id") Long id, @Param("usuarioId") Long usuarioId);
 
         /**
          * ¿El estudiante compró este producto en alguna orden no cancelada?

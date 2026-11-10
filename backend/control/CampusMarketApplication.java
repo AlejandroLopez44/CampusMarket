@@ -24,6 +24,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import model.UsuarioModel.Rol;
 
@@ -213,5 +214,33 @@ class SesionActiva {
         if (!Rol.ADMINISTRADOR.name().equals(sesion.getAttribute(ATR_ROL))) {
             throw new NegocioException(HttpStatus.FORBIDDEN, "Solo un administrador puede realizar esta acción.");
         }
+    }
+
+    /**
+     * Verifica que el usuario autenticado sea ESTUDIANTE. Comprar, usar el
+     * carrito guardado y escribir reseñas son acciones exclusivas del estudiante:
+     * el administrador gestiona el negocio, no compra.
+     * @return id del estudiante autenticado
+     * @throws NegocioException 401 sin sesión, 403 si es administrador.
+     */
+    Long exigirEstudiante(HttpSession sesion) {
+        Long id = usuarioId(sesion);
+        if (!Rol.ESTUDIANTE.name().equals(sesion.getAttribute(ATR_ROL))) {
+            throw new NegocioException(HttpStatus.FORBIDDEN, "Esta acción es solo para estudiantes.");
+        }
+        return id;
+    }
+
+    /**
+     * Para endpoints que funcionan con o sin sesión (p. ej. el carrito de invitado).
+     * @return id del usuario si hay sesión; Optional vacío si es un visitante
+     */
+    Optional<Long> usuarioIdOpcional(HttpSession sesion) {
+        return Optional.ofNullable((Long) sesion.getAttribute(ATR_USUARIO_ID));
+    }
+
+    /** @return true si la sesión pertenece a un administrador. */
+    boolean esAdministrador(HttpSession sesion) {
+        return Rol.ADMINISTRADOR.name().equals(sesion.getAttribute(ATR_ROL));
     }
 }

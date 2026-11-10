@@ -152,7 +152,12 @@ class UsuarioServiceImpl implements UsuarioService {
         u.setNombre(req.nombre().trim());
         u.setCorreo(correo);
         u.setPasswordHash(passwordEncoder.encode(req.password()));
-        u.setTelefono(req.telefono() == null || req.telefono().isBlank() ? null : req.telefono().trim());
+        // El formato ya lo validó @Pattern; aquí se repite (defensa) y se normaliza a "0414-1234567".
+        String telefono = req.telefono() == null ? "" : req.telefono().trim();
+        if (!telefono.isEmpty() && !telefono.matches(UsuarioModel.REGEX_TELEFONO)) {
+            throw new NegocioException(HttpStatus.BAD_REQUEST, UsuarioModel.MENSAJE_TELEFONO);
+        }
+        u.setTelefono(UsuarioModel.normalizarTelefono(telefono));
         u.setRol(Rol.ESTUDIANTE); // El registro público SIEMPRE crea estudiantes (seguridad)
         usuarios.save(u);
 

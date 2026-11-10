@@ -38,6 +38,29 @@ public final class UsuarioModel {
     /** Expresión regular estricta para el correo estudiantil (en minúsculas). */
     public static final String REGEX_CORREO_UCAB = "^[a-z0-9._%+-]+@est\\.ucab\\.edu\\.ve$";
 
+    /**
+     * Teléfono venezolano: código permitido + 7 dígitos, guion opcional al escribir.
+     * Móviles 0412, 0414, 0416, 0424, 0426 y fijo 0212 (el Brief limita la operación
+     * a la Gran Caracas). Ejemplos válidos: "0414-1234567" o "04141234567".
+     */
+    public static final String REGEX_TELEFONO = "^0(412|414|416|424|426|212)-?[0-9]{7}$";
+
+    /** Mensaje único para el error de teléfono (se reutiliza en DTO y servicio). */
+    public static final String MENSAJE_TELEFONO =
+            "Teléfono inválido. Use un código 0412, 0414, 0416, 0424, 0426 o 0212 y 7 dígitos (ej. 0414-1234567)";
+
+    /**
+     * Normaliza un teléfono válido al formato con guion "0414-1234567",
+     * que es el único que acepta la base de datos.
+     * @param telefono texto escrito por el usuario (puede ser null o vacío)
+     * @return teléfono normalizado, o null si venía vacío
+     */
+    public static String normalizarTelefono(String telefono) {
+        if (telefono == null || telefono.isBlank()) return null;
+        String digitos = telefono.replace("-", "").trim();
+        return digitos.substring(0, 4) + "-" + digitos.substring(4);
+    }
+
     /** Roles posibles. Un enum evita "cadenas mágicas" y errores de escritura. */
     public enum Rol { ESTUDIANTE, ADMINISTRADOR }
 
@@ -117,7 +140,8 @@ public final class UsuarioModel {
             @Size(min = 8, max = 64, message = "La contraseña debe tener entre 8 y 64 caracteres")
             String password,
 
-            @Pattern(regexp = "^$|^[0-9+\\- ]{7,20}$", message = "El teléfono no es válido")
+            @Size(max = 12, message = "El teléfono admite máximo 12 caracteres")
+            @Pattern(regexp = "^$|" + REGEX_TELEFONO, message = MENSAJE_TELEFONO)
             String telefono
     ) { }
 

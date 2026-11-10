@@ -39,6 +39,12 @@ class UsuarioClientController extends ApiClient {
   /** Mismo patrón que el backend: validación estricta del dominio UCAB. */
   static readonly REGEX_CORREO_UCAB = /^[a-z0-9._%+-]+@est\.ucab\.edu\.ve$/
 
+  /** Igual que UsuarioModel.REGEX_TELEFONO del backend: código permitido + 7 dígitos, guion opcional. */
+  static readonly REGEX_TELEFONO = /^0(412|414|416|424|426|212)-?[0-9]{7}$/
+
+  /** Máximo de caracteres del campo teléfono ("0414-1234567"). */
+  static readonly MAX_TELEFONO = 12
+
   /** Estado reactivo: cualquier vista que lo lea se actualiza sola al cambiar. */
   readonly estado = reactive<{ usuario: Perfil | null }>({ usuario: null })
 
@@ -56,6 +62,16 @@ class UsuarioClientController extends ApiClient {
     return this.estado.usuario?.rol === 'ADMINISTRADOR'
   }
 
+  /** @returns true si el usuario autenticado es estudiante (único rol que compra y reseña). */
+  get esEstudiante(): boolean {
+    return this.estado.usuario?.rol === 'ESTUDIANTE'
+  }
+
+  /** Máximo de caracteres del teléfono, expuesto para las vistas. */
+  get maxTelefono(): number {
+    return UsuarioClientController.MAX_TELEFONO
+  }
+
   /**
    * Validación en el cliente (UX inmediata). El backend repite TODAS las
    * reglas: el cliente nunca es la única barrera.
@@ -67,7 +83,9 @@ class UsuarioClientController extends ApiClient {
     if (!UsuarioClientController.REGEX_CORREO_UCAB.test(d.correo.trim().toLowerCase())) {
       errores.correo = 'Use su correo institucional @est.ucab.edu.ve'
     }
-    if (d.telefono && !/^[0-9+\- ]{7,20}$/.test(d.telefono)) errores.telefono = 'El teléfono no es válido'
+    if (d.telefono.trim() && !UsuarioClientController.REGEX_TELEFONO.test(d.telefono.trim())) {
+      errores.telefono = 'Use un código 0412, 0414, 0416, 0424, 0426 o 0212 y 7 dígitos (ej. 0414-1234567)'
+    }
     if (d.password.length < 8) errores.password = 'La contraseña debe tener al menos 8 caracteres'
     if (d.password !== d.confirmarPassword) errores.confirmarPassword = 'Las contraseñas no coinciden'
     return errores

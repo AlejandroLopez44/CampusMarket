@@ -44,6 +44,22 @@ export interface Compra {
   detalles: DetalleCompra[]
 }
 
+/** Factura de una orden: comprador + detalle + total (HU-05, HU-09). */
+export interface Factura {
+  id: number
+  numeroOrden: string
+  fecha: string
+  estado: Compra['estado']
+  estadoEtiqueta: string
+  cliente: string
+  correo: string
+  telefono: string | null
+  detalles: DetalleCompra[]
+  unidades: number
+  total: number
+  moneda: 'Bs.'
+}
+
 class CompraClientController extends ApiClient {
   constructor() {
     super('/api/compras')
@@ -69,6 +85,20 @@ class CompraClientController extends ApiClient {
   /** GET /api/compras — historial de la cuenta activa (HU-09). */
   historial(): Promise<Compra[]> {
     return this.get<Compra[]>()
+  }
+
+  /** GET /api/compras/{id}/factura — factura de una orden propia. */
+  factura(id: number): Promise<Factura> {
+    return this.get<Factura>(`/${id}/factura`)
+  }
+
+  /**
+   * POST /api/compras/{id}/pago-simulado — marca la orden como "Pagada".
+   * NO pide ni envía datos de pago: el pago real es de la 2.ª iteración.
+   * @throws ApiError 409 si la orden ya no está pendiente de pago
+   */
+  registrarPagoSimulado(id: number): Promise<RespuestaApi<Factura>> {
+    return this.post<RespuestaApi<Factura>>(`/${id}/pago-simulado`)
   }
 }
 

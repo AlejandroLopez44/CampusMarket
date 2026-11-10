@@ -31,7 +31,9 @@ const calificacion = ref(5)
 const enviando = ref(false)
 const mensaje = ref<{ tipo: 'exito' | 'error'; texto: string } | null>(null)
 
-const autenticado = computed(() => usuarioController.estado.usuario !== null)
+/** Solo el ESTUDIANTE escribe reseñas; el admin las ve en modo lectura (moderación). */
+const rol = computed(() => usuarioController.estado.usuario?.rol ?? null)
+const esEstudiante = computed(() => rol.value === 'ESTUDIANTE')
 const restantes = computed(() => MAX_CARACTERES_RESENA - texto.value.length)
 
 /** HU-01: consulta las reseñas del producto (el mensaje de vacío lo provee el backend). */
@@ -101,8 +103,8 @@ onMounted(cargar)
 
       <hr class="my-5 border-slate-200" />
 
-      <!-- HU-10: insertar reseña -->
-      <div v-if="autenticado">
+      <!-- HU-10: insertar reseña (solo estudiantes) -->
+      <div v-if="esEstudiante">
         <h3 class="mb-2 font-bold">Escribir una reseña</h3>
         <p v-if="mensaje" :class="['mb-3 rounded-lg p-3 text-sm', mensaje.tipo === 'exito' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700']">
           {{ mensaje.texto }}
@@ -123,7 +125,8 @@ onMounted(cargar)
           </div>
         </form>
       </div>
-      <p v-else class="text-sm text-slate-500">Inicia sesión para escribir una reseña de un producto que hayas comprado.</p>
+      <p v-else-if="rol === 'ADMINISTRADOR'" class="text-sm text-slate-500">Vista de administrador: las reseñas se muestran en modo lectura.</p>
+      <p v-else class="text-sm text-slate-500">Inicia sesión como estudiante para escribir una reseña de un producto que hayas comprado.</p>
 
       <div class="mt-5 text-right">
         <button class="rounded-lg bg-slate-200 px-4 py-2 font-semibold hover:bg-slate-300" @click="emit('cerrar')">OK</button>

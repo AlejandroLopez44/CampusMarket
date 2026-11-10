@@ -1,9 +1,11 @@
 package model;
 
 import jakarta.persistence.*;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -172,13 +174,32 @@ public final class CarritoModel {
                                          int cantidadEnCarrito, int stockActual, boolean disponible,
                                          BigDecimal subtotalBs, String mensaje) { }
 
-    /** Un renglón del carrito ya calculado. */
+    /**
+     * Lista de ítems enviada por el navegador (carrito de invitado).
+     * Se usa para cotizar el carrito sin sesión y para unirlo al carrito
+     * guardado cuando el estudiante inicia sesión. @Valid valida cada ítem.
+     */
+    public record ListaItemsRequest(
+            @NotNull(message = "La lista de productos es obligatoria")
+            @Size(max = 50, message = "Máximo 50 productos distintos en el carrito")
+            List<@Valid AgregarItemRequest> items
+    ) { }
+
+    /**
+     * Un renglón del carrito ya calculado con el precio VIGENTE del catálogo.
+     * {@code stockActual} permite a la vista avisar si ya no alcanza el inventario.
+     */
     public record ItemCarritoResponse(Long productoId, String codigo, String nombre, String imagenUrl,
-                                      BigDecimal precioUnitario, int cantidad, BigDecimal subtotal) {
+                                      BigDecimal precioUnitario, int cantidad, BigDecimal subtotal,
+                                      int stockActual) {
         public static ItemCarritoResponse desde(CarritoItem i) {
-            Producto p = i.getProducto();
+            return de(i.getProducto(), i.getCantidad());
+        }
+
+        /** Construye el renglón a partir de un producto y una cantidad (sirve también sin entidad CarritoItem). */
+        public static ItemCarritoResponse de(Producto p, int cantidad) {
             return new ItemCarritoResponse(p.getId(), p.getCodigo(), p.getNombre(), p.getImagenUrl(),
-                    p.getPrecio(), i.getCantidad(), i.subtotal());
+                    p.getPrecio(), cantidad, p.getPrecio().multiply(BigDecimal.valueOf(cantidad)), p.getStock());
         }
     }
 
@@ -186,12 +207,18 @@ public final class CarritoModel {
     public record CarritoResponse(List<ItemCarritoResponse> items, int cantidadTotal,
                                   BigDecimal total, String moneda, boolean vacio) {
         public static CarritoResponse desde(Carrito c) {
-            List<ItemCarritoResponse> items = c.getItems().stream().map(ItemCarritoResponse::desde).toList();
-            return new CarritoResponse(items, c.cantidadTotal(), c.total(), "Bs.", items.isEmpty());
+            return deItems(c.getItems().stream().map(ItemCarritoResponse::desde).toList());
+        }
+
+        /** Calcula unidades y total a partir de renglones ya armados (carrito guardado o de invitado). */
+        public static CarritoResponse deItems(List<ItemCarritoResponse> items) {
+            int unidades = items.stream().mapToInt(ItemCarritoResponse::cantidad).sum();
+            BigDecimal total = items.stream().map(ItemCarritoResponse::subtotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+            return new CarritoResponse(items, unidades, total, "Bs.", items.isEmpty());
         }
 
         public static CarritoResponse sinItems() {
-            return new CarritoResponse(List.of(), 0, BigDecimal.ZERO, "Bs.", true);
+            return deItems(List.of());
         }
     }
 

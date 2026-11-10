@@ -51,12 +51,12 @@ public class ResenaController {
         return resenaService.consultar(productoId);
     }
 
-    /** POST /api/productos/{id}/resenas — HU-10 (requiere sesión). */
+    /** POST /api/productos/{id}/resenas — HU-10 (solo estudiantes; el admin solo lee). */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     RespuestaApi<ResenaResponse> insertar(@PathVariable Long productoId,
                                           @Valid @RequestBody ResenaRequest req, HttpSession sesion) {
-        ResenaResponse r = resenaService.insertar(sesionActiva.usuarioId(sesion), productoId, req);
+        ResenaResponse r = resenaService.insertar(sesionActiva.exigirEstudiante(sesion), productoId, req);
         return new RespuestaApi<>("¡Reseña publicada con éxito!", r);
     }
 }

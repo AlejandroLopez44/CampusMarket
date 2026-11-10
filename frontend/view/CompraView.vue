@@ -1,6 +1,6 @@
 <!--
   =====================================================================
-  CompraView — Capa VIEW del módulo Compras.
+  CompraView — Capa VIEW del módulo Compras (solo estudiantes).
   ---------------------------------------------------------------------
   modo="generar":   HU-05 Generar Compra.
   modo="historial": HU-09 Consultar Compras.
@@ -11,13 +11,18 @@
             → [con productos] Revisa → [Generar orden] → confirmación EXPLÍCITA
                 → [stock insuficiente] alerta → [OK] vuelve a validar · [Salir] menú
                 → [stock suficiente] "Orden generada - N° ..." (Pendiente de Pago)
-                    → [OK] Procesar pago (próximo sprint → historial) · [Salir] menú
+                    → se muestra la FACTURA con todos los productos
+                    → [Registrar pago (simulado)] → la orden queda "Pagada"
+                      (no se piden datos: el pago real es de la 2.ª iteración)
+
+  Desde "Mis compras" también se puede abrir la factura de cada orden y,
+  si está pendiente, registrar su pago simulado.
   =====================================================================
 -->
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import DialogoView from './DialogoView.vue'
-import { compraController, type Compra, type ResumenCompra } from '../control/CompraClientController'
+import { compraController, type Compra, type Factura, type ResumenCompra } from '../control/CompraClientController'
 import { carritoController } from '../control/CarritoClientController'
 import { ApiError, formatearBs, formatearFecha } from '../control/ApiClient'
 import type { BotonDialogo, Destino } from '../control/NavegacionController'
@@ -31,6 +36,11 @@ const resumen = ref<ResumenCompra | null>(null)
 const historial = ref<Compra[]>([])
 const abierta = ref<number | null>(null) // Orden expandida en el historial
 const procesando = ref(false)
+
+/** Factura visible (tras generar la orden o al abrirla desde el historial). */
+const factura = ref<Factura | null>(null)
+/** Mensaje destacado sobre la factura ("Orden generada - N° ...", "Pago registrado"). */
+const avisoFactura = ref('')
 
 interface Dialogo { titulo: string; mensaje: string; tipo: 'info' | 'exito' | 'error' | 'confirmar'; botones: BotonDialogo[]; alAccion: (v: string) => void }
 const dialogo = ref<Dialogo | null>(null)
@@ -85,20 +95,13 @@ function solicitarConfirmacion(): void {
 
 /**
  * Paso 3: registra la orden. El backend valida stock con bloqueo; si falta
- * inventario responde 409 "Stock insuficiente del ...".
+ * inventario responde 409 "Stock insuficiente del ...". Al éxito se muestra la factura.
  */
 async function generarOrden(): Promise<void> {
   procesando.value = true
   try {
     const r = await compraController.generar()
-    dialogo.value = {
-      titulo: r.mensaje,
-      mensaje: `Estado: ${r.datos.estadoEtiqueta}\nTotal: ${formatearBs(r.datos.total)}\nTe enviamos la confirmación a tu correo UCAB.`,
-      tipo: 'exito',
-      botones: [{ texto: 'Salir', valor: 'salir', estilo: 'secundario' }, { texto: 'OK', valor: 'ok' }],
-      // [OK] → "Redirigir a Procesar Pago": el pago llega en el próximo sprint; por ahora se muestra el historial.
-      alAccion: v => emit('navegar', v === 'ok' ? 'compras' : 'inicio'),
-    }
+    await abrirFactura(r.datos.id, `${r.mensaje}. Te enviamos la confirmación a tu correo UCAB.`)
   } catch (e) {
     if (e instanceof ApiError && (e.status === 409 || e.status === 400)) {
       dialogo.value = {
@@ -111,6 +114,59 @@ async function generarOrden(): Promise<void> {
   } finally {
     procesando.value = false
   }
+}
+
+// ======================= Factura y pago simulado =======================
+
+/**
+ * Pide la factura al servidor y la muestra.
+ * @param id     id de la orden
+ * @param aviso  mensaje destacado opcional (p. ej. "Orden generada - N° ...")
+ */
+async function abrirFactura(id: number, aviso = ''): Promise<void> {
+  try {
+    factura.value = await compraController.factura(id)
+    avisoFactura.value = aviso
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  } catch (e) {
+    manejarError(e)
+  }
+}
+
+/** Pide confirmación antes de registrar el pago simulado (acción que cambia el estado). */
+function solicitarPagoSimulado(): void {
+  const f = factura.value
+  if (!f) return
+  dialogo.value = {
+    titulo: '¿Registrar el pago simulado?',
+    mensaje: `La orden ${f.numeroOrden} por ${formatearBs(f.total)} quedará como "Pagada".\nNo se solicitan datos de pago: es una simulación para pruebas.`,
+    tipo: 'confirmar',
+    botones: [{ texto: 'Cancelar', valor: 'cancelar', estilo: 'secundario' }, { texto: 'Registrar pago', valor: 'pagar' }],
+    alAccion: v => v === 'pagar' && registrarPago(f.id),
+  }
+}
+
+/** POST pago-simulado: actualiza la factura en pantalla con el nuevo estado. */
+async function registrarPago(id: number): Promise<void> {
+  procesando.value = true
+  try {
+    const r = await compraController.registrarPagoSimulado(id)
+    factura.value = r.datos
+    avisoFactura.value = r.mensaje
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) avisoFactura.value = e.message
+    else manejarError(e)
+  } finally {
+    procesando.value = false
+  }
+}
+
+/** Cierra la factura: desde el historial vuelve a la lista actualizada; desde la compra va a "Mis compras". */
+function cerrarFactura(): void {
+  factura.value = null
+  avisoFactura.value = ''
+  if (props.modo === 'historial') cargarHistorial()
+  else emit('navegar', 'compras')
 }
 
 // ======================= HU-09 =======================
@@ -140,66 +196,133 @@ onMounted(() => (props.modo === 'generar' ? cargarResumen() : cargarHistorial())
 
 <template>
   <section class="mx-auto max-w-3xl">
-    <h1 class="mb-4 text-2xl font-bold">{{ modo === 'generar' ? 'Resumen de compra' : 'Mis compras' }}</h1>
+    <!-- ============ FACTURA (tras generar la orden o desde el historial) ============ -->
+    <template v-if="factura">
+      <p v-if="avisoFactura" class="mb-4 whitespace-pre-line rounded-xl bg-emerald-50 p-4 font-semibold text-emerald-800">{{ avisoFactura }}</p>
 
-    <p v-if="cargando" class="py-10 text-center text-slate-500">Cargando…</p>
-    <div v-else-if="error" class="rounded-xl bg-red-50 p-6 text-center text-red-700">
-      {{ error }}
-      <button class="ml-2 font-semibold underline" @click="modo === 'generar' ? cargarResumen() : cargarHistorial()">Reintentar</button>
-    </div>
+      <article class="rounded-2xl bg-white p-4 shadow-sm sm:p-8" aria-label="Factura">
+        <header class="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p class="text-xl font-extrabold text-marca-600">CampusMarket</p>
+            <p class="text-sm text-slate-500">Insumos estudiantiles · UCAB · Gran Caracas</p>
+          </div>
+          <div class="sm:text-right">
+            <h1 class="text-lg font-bold">Factura N° {{ factura.numeroOrden }}</h1>
+            <p class="text-sm text-slate-500">Fecha: {{ formatearFecha(factura.fecha) }}</p>
+            <span :class="['mt-1 inline-block rounded-full px-3 py-0.5 text-xs font-bold', claseEstado(factura.estado)]">{{ factura.estadoEtiqueta }}</span>
+          </div>
+        </header>
 
-    <!-- ============ HU-05: Resumen ============ -->
-    <div v-else-if="modo === 'generar' && resumen && !resumen.carritoVacio" class="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
-      <p class="mb-3 text-slate-500">{{ resumen.mensaje }}</p>
-      <!-- Tabla con scroll horizontal en móviles -->
-      <div class="overflow-x-auto">
-        <table class="w-full min-w-[420px] text-left">
-          <thead class="text-sm text-slate-500">
-            <tr><th class="py-2">Producto</th><th class="py-2 text-center">Cant.</th><th class="py-2 text-right">Precio</th><th class="py-2 text-right">Subtotal</th></tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-for="d in resumen.detalles" :key="d.productoId">
-              <td class="py-2">{{ d.nombre }}</td>
-              <td class="py-2 text-center">{{ d.cantidad }}</td>
-              <td class="py-2 text-right">{{ formatearBs(d.precioUnitario) }}</td>
-              <td class="py-2 text-right font-semibold">{{ formatearBs(d.subtotal) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="mt-4 flex items-center justify-between border-t-2 border-slate-200 pt-4">
-        <span class="text-lg font-semibold">Total a pagar</span>
-        <span class="text-2xl font-bold text-emerald-600">{{ formatearBs(resumen.total) }}</span>
-      </div>
+        <div class="grid gap-1 border-b border-slate-200 py-4 text-sm sm:grid-cols-3">
+          <p><span class="text-slate-500">Cliente:</span> <span class="font-medium">{{ factura.cliente }}</span></p>
+          <p class="break-all"><span class="text-slate-500">Correo:</span> {{ factura.correo }}</p>
+          <p><span class="text-slate-500">Teléfono:</span> {{ factura.telefono || 'No registrado' }}</p>
+        </div>
+
+        <div class="overflow-x-auto py-4">
+          <table class="w-full min-w-[440px] text-left text-sm">
+            <thead class="text-xs uppercase text-slate-500">
+              <tr><th class="py-2">Producto</th><th class="py-2 text-center">Cant.</th><th class="py-2 text-right">Precio unit.</th><th class="py-2 text-right">Subtotal</th></tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="d in factura.detalles" :key="d.productoId">
+                <td class="py-2">{{ d.nombre }}</td>
+                <td class="py-2 text-center tabular-nums">{{ d.cantidad }}</td>
+                <td class="py-2 text-right tabular-nums">{{ formatearBs(d.precioUnitario) }}</td>
+                <td class="py-2 text-right font-semibold tabular-nums">{{ formatearBs(d.subtotal) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex items-center justify-between border-t-2 border-slate-200 pt-4">
+          <span class="font-semibold">Total ({{ factura.unidades }} unidades)</span>
+          <span class="text-2xl font-bold tabular-nums text-emerald-600">{{ formatearBs(factura.total) }}</span>
+        </div>
+
+        <p v-if="factura.estado === 'PENDIENTE_PAGO'" class="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+          Pago pendiente. El pago real se habilitará en la próxima iteración; por ahora puedes registrar un pago simulado para pruebas.
+        </p>
+      </article>
+
       <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <button class="rounded-lg bg-slate-200 px-4 py-2 font-semibold hover:bg-slate-300" @click="emit('navegar', 'inicio')">Salir</button>
-        <button :disabled="procesando" class="rounded-lg bg-marca-600 px-6 py-2 font-semibold text-white hover:bg-marca-700 disabled:opacity-50" @click="solicitarConfirmacion">Generar orden</button>
+        <button class="rounded-lg bg-slate-200 px-4 py-2 font-semibold hover:bg-slate-300" @click="emit('navegar', 'inicio')">Volver al inicio</button>
+        <button class="rounded-lg bg-slate-200 px-4 py-2 font-semibold hover:bg-slate-300" @click="cerrarFactura">
+          {{ modo === 'historial' ? '← Volver a mis compras' : 'Ver mis compras' }}
+        </button>
+        <button v-if="factura.estado === 'PENDIENTE_PAGO'" :disabled="procesando"
+                class="rounded-lg bg-marca-600 px-6 py-2 font-semibold text-white hover:bg-marca-700 disabled:opacity-50"
+                @click="solicitarPagoSimulado">Registrar pago (simulado)</button>
       </div>
-    </div>
+    </template>
 
-    <!-- ============ HU-09: Historial ============ -->
-    <template v-else-if="modo === 'historial'">
-      <div v-if="historial.length === 0" class="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm">
-        Aún no tienes compras registradas.
+    <template v-else>
+      <h1 class="mb-4 text-2xl font-bold">{{ modo === 'generar' ? 'Resumen de compra' : 'Mis compras' }}</h1>
+
+      <p v-if="cargando" class="py-10 text-center text-slate-500">Cargando…</p>
+      <div v-else-if="error" class="rounded-xl bg-red-50 p-6 text-center text-red-700">
+        {{ error }}
+        <button class="ml-2 font-semibold underline" @click="modo === 'generar' ? cargarResumen() : cargarHistorial()">Reintentar</button>
       </div>
-      <ul v-else class="space-y-3">
-        <li v-for="c in historial" :key="c.id" class="rounded-2xl bg-white shadow-sm">
-          <button class="flex w-full flex-wrap items-center justify-between gap-2 p-4 text-left" :aria-expanded="abierta === c.id" @click="abierta = abierta === c.id ? null : c.id">
-            <div>
-              <strong>Orden {{ c.numeroOrden }}</strong>
-              <p class="text-sm text-slate-500">{{ formatearFecha(c.fecha) }}</p>
+
+      <!-- ============ HU-05: Resumen ============ -->
+      <div v-else-if="modo === 'generar' && resumen && !resumen.carritoVacio" class="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
+        <p class="mb-3 text-slate-500">{{ resumen.mensaje }}</p>
+        <!-- Tabla con scroll horizontal en móviles -->
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[420px] text-left">
+            <thead class="text-sm text-slate-500">
+              <tr><th class="py-2">Producto</th><th class="py-2 text-center">Cant.</th><th class="py-2 text-right">Precio</th><th class="py-2 text-right">Subtotal</th></tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="d in resumen.detalles" :key="d.productoId">
+                <td class="py-2">{{ d.nombre }}</td>
+                <td class="py-2 text-center">{{ d.cantidad }}</td>
+                <td class="py-2 text-right">{{ formatearBs(d.precioUnitario) }}</td>
+                <td class="py-2 text-right font-semibold">{{ formatearBs(d.subtotal) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="mt-4 flex items-center justify-between border-t-2 border-slate-200 pt-4">
+          <span class="text-lg font-semibold">Total a pagar</span>
+          <span class="text-2xl font-bold text-emerald-600">{{ formatearBs(resumen.total) }}</span>
+        </div>
+        <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <button class="rounded-lg bg-slate-200 px-4 py-2 font-semibold hover:bg-slate-300" @click="emit('navegar', 'inicio')">Salir</button>
+          <button :disabled="procesando" class="rounded-lg bg-marca-600 px-6 py-2 font-semibold text-white hover:bg-marca-700 disabled:opacity-50" @click="solicitarConfirmacion">Generar orden</button>
+        </div>
+      </div>
+
+      <!-- ============ HU-09: Historial ============ -->
+      <template v-else-if="modo === 'historial'">
+        <div v-if="historial.length === 0" class="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm">
+          Aún no tienes compras registradas.
+        </div>
+        <ul v-else class="space-y-3">
+          <li v-for="c in historial" :key="c.id" class="rounded-2xl bg-white shadow-sm">
+            <button class="flex w-full flex-wrap items-center justify-between gap-2 p-4 text-left" :aria-expanded="abierta === c.id" @click="abierta = abierta === c.id ? null : c.id">
+              <div>
+                <strong>Orden {{ c.numeroOrden }}</strong>
+                <p class="text-sm text-slate-500">{{ formatearFecha(c.fecha) }}</p>
+              </div>
+              <span :class="['rounded-full px-3 py-0.5 text-xs font-bold', claseEstado(c.estado)]">{{ c.estadoEtiqueta }}</span>
+              <span class="font-bold text-emerald-600">{{ formatearBs(c.total) }}</span>
+            </button>
+            <div v-if="abierta === c.id" class="border-t border-slate-100 px-4 py-3 text-sm">
+              <ul>
+                <li v-for="d in c.detalles" :key="d.productoId" class="flex justify-between py-1">
+                  <span>{{ d.cantidad }} × {{ d.nombre }}</span><span>{{ formatearBs(d.subtotal) }}</span>
+                </li>
+              </ul>
+              <button class="mt-3 rounded-lg bg-marca-600 px-4 py-2 font-semibold text-white hover:bg-marca-700" @click="abrirFactura(c.id)">
+                {{ c.estado === 'PENDIENTE_PAGO' ? 'Ver factura y registrar pago' : 'Ver factura' }}
+              </button>
             </div>
-            <span :class="['rounded-full px-3 py-0.5 text-xs font-bold', claseEstado(c.estado)]">{{ c.estadoEtiqueta }}</span>
-            <span class="font-bold text-emerald-600">{{ formatearBs(c.total) }}</span>
-          </button>
-          <ul v-if="abierta === c.id" class="border-t border-slate-100 px-4 py-3 text-sm">
-            <li v-for="d in c.detalles" :key="d.productoId" class="flex justify-between py-1">
-              <span>{{ d.cantidad }} × {{ d.nombre }}</span><span>{{ formatearBs(d.subtotal) }}</span>
-            </li>
-          </ul>
-        </li>
-      </ul>
-      <button class="mt-6 w-full rounded-lg bg-slate-200 px-4 py-2 font-semibold hover:bg-slate-300" @click="emit('navegar', 'inicio')">← Volver al menú principal</button>
+          </li>
+        </ul>
+        <button class="mt-6 w-full rounded-lg bg-slate-200 px-4 py-2 font-semibold hover:bg-slate-300" @click="emit('navegar', 'inicio')">← Volver al menú principal</button>
+      </template>
     </template>
 
     <DialogoView v-if="dialogo" :titulo="dialogo.titulo" :mensaje="dialogo.mensaje" :tipo="dialogo.tipo" :botones="dialogo.botones" @accion="resolverDialogo" />
