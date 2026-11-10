@@ -26,6 +26,7 @@ import EstadisticasView from './EstadisticasView.vue'
 import DialogoView from './DialogoView.vue'
 import { usuarioController } from '../control/UsuarioClientController'
 import { carritoController } from '../control/CarritoClientController'
+import { formatearBs } from '../control/ApiClient'
 import type { Destino } from '../control/NavegacionController'
 
 const vista = ref<Destino>('inicio')
@@ -139,13 +140,18 @@ const tarjetas = computed(() => [
         </button>
 
         <div class="flex items-center gap-2">
-          <!-- Ícono del carrito (visitante y estudiante): refleja cantidadTotal del estado compartido -->
-          <button v-if="!esAdmin" class="relative rounded-lg p-2 hover:bg-slate-100" aria-label="Ver carrito" @click="navegar('carrito')">
-            <span class="text-2xl">🛒</span>
-            <span v-if="carrito.cantidadTotal > 0"
-                  class="absolute -right-1 -top-1 rounded-full bg-red-600 px-1.5 text-xs font-bold text-white">
-              {{ carrito.cantidadTotal }}
+          <!-- Ícono del carrito (visitante y estudiante). Criterio 1 de "Agregar al carrito":
+               se actualiza al instante con la cantidad de artículos y el subtotal acumulado en Bs. -->
+          <button v-if="!esAdmin" class="flex items-center gap-2 rounded-lg p-2 hover:bg-slate-100"
+                  :aria-label="`Ver carrito: ${carrito.cantidadTotal} artículo(s), ${formatearBs(carrito.total)}`" @click="navegar('carrito')">
+            <span class="relative">
+              <span class="text-2xl">🛒</span>
+              <span v-if="carrito.cantidadTotal > 0"
+                    class="absolute -right-2 -top-1 rounded-full bg-red-600 px-1.5 text-xs font-bold text-white">
+                {{ carrito.cantidadTotal }}
+              </span>
             </span>
+            <span v-if="carrito.cantidadTotal > 0" class="text-sm font-bold tabular-nums text-emerald-700">{{ formatearBs(carrito.total) }}</span>
           </button>
           <!-- Botón hamburguesa solo en móvil -->
           <button class="rounded-lg p-2 hover:bg-slate-100 md:hidden" aria-label="Abrir menú" @click="menuAbierto = !menuAbierto">☰</button>

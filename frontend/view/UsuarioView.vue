@@ -150,9 +150,9 @@ const claseCampo = (error?: string) =>
       </dl>
     </div>
 
-    <!-- Navegación limpia de retorno al Dashboard (siempre visible) -->
+    <!-- Criterio 3 de la HU: botón "Regresar" siempre visible que vuelve al menú principal (Dashboard) -->
     <button class="mt-6 w-full rounded-lg bg-slate-200 px-4 py-2 font-semibold hover:bg-slate-300" @click="emit('navegar', 'inicio')">
-      ← Volver al Dashboard
+      ← Regresar al menú principal
     </button>
   </section>
 

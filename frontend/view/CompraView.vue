@@ -95,7 +95,7 @@ function solicitarConfirmacion(): void {
 
 /**
  * Paso 3: registra la orden. El backend valida stock con bloqueo; si falta
- * inventario responde 409 "Stock insuficiente del ...". Al éxito se muestra la factura.
+ * inventario responde 409 "Stock insuficiente en el producto [Nombre]". Al éxito se muestra la factura.
  */
 async function generarOrden(): Promise<void> {
   procesando.value = true
@@ -103,16 +103,51 @@ async function generarOrden(): Promise<void> {
     const r = await compraController.generar()
     await abrirFactura(r.datos.id, `${r.mensaje}. Te enviamos la confirmación a tu correo UCAB.`)
   } catch (e) {
-    if (e instanceof ApiError && (e.status === 409 || e.status === 400)) {
+    if (e instanceof ApiError && e.status === 409) {
+      alertarStockInsuficiente(e.message)
+    } else if (e instanceof ApiError && e.status === 400) {
+      // Carrito vacío (p. ej. se vació en otra pestaña): [OK] al catálogo, [Salir] al menú.
       dialogo.value = {
-        titulo: e.status === 409 ? 'Stock insuficiente' : 'No se pudo generar la orden', mensaje: e.message, tipo: 'error',
+        titulo: 'No se pudo generar la orden', mensaje: e.message, tipo: 'error',
         botones: [{ texto: 'Salir', valor: 'salir', estilo: 'secundario' }, { texto: 'OK', valor: 'ok' }],
-        // [OK] vuelve a "Validar producto, cantidad y precio" (inicio del flujo).
-        alAccion: v => { if (v === 'ok') { carritoController.consultar().catch(() => undefined); cargarResumen() } else emit('navegar', 'inicio') },
+        alAccion: v => emit('navegar', v === 'ok' ? 'productos' : 'inicio'),
       }
     } else manejarError(e)
   } finally {
     procesando.value = false
+  }
+}
+
+/**
+ * Rama "stock insuficiente". En el Sprint 1 NO se pueden ajustar cantidades, así que
+ * repetir la validación sería un bucle sin salida. Se ofrecen dos salidas reales:
+ *  • [Salir] → menú principal, sin cambiar nada.
+ *  • [Vaciar carrito y volver al catálogo] → (con confirmación) empezar de nuevo.
+ */
+let ultimoMensajeStock = ''
+function alertarStockInsuficiente(mensaje: string): void {
+  ultimoMensajeStock = mensaje // Para volver a mostrarlo si el usuario cancela el vaciado
+  dialogo.value = {
+    titulo: 'Stock insuficiente', mensaje: `${mensaje}.\nNo es posible generar la compra con este carrito.`, tipo: 'error',
+    botones: [{ texto: 'Salir', valor: 'salir', estilo: 'secundario' }, { texto: 'Vaciar carrito y volver al catálogo', valor: 'vaciar', estilo: 'peligro' }],
+    alAccion: v => (v === 'vaciar' ? confirmarVaciado() : emit('navegar', 'inicio')),
+  }
+}
+
+/** Vaciar el carrito borra todo: se confirma antes (acción irreversible). */
+function confirmarVaciado(): void {
+  dialogo.value = {
+    titulo: '¿Vaciar tu carrito?', mensaje: 'Se quitarán todos los productos de tu carrito. Esta acción no se puede deshacer.', tipo: 'confirmar',
+    botones: [{ texto: 'Cancelar', valor: 'cancelar', estilo: 'secundario' }, { texto: 'Vaciar carrito', valor: 'vaciar', estilo: 'peligro' }],
+    alAccion: async v => {
+      if (v !== 'vaciar') return alertarStockInsuficiente(ultimoMensajeStock)
+      try {
+        await carritoController.vaciar()
+        emit('navegar', 'productos')
+      } catch (e) {
+        manejarError(e)
+      }
+    },
   }
 }
 

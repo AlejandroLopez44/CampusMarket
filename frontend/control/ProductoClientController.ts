@@ -67,7 +67,7 @@ class ProductoClientController extends ApiClient {
 
   /**
    * Validación en cliente de las reglas HU-03:
-   * precio > 0, stock > 0 (entero), código con formato e imagen obligatoria.
+   * precio > 0, stock ≥ 0 (entero; 0 = "Agotado"), código con formato e imagen obligatoria.
    * La unicidad del código solo puede verificarla el servidor.
    * @returns mapa campo → mensaje (vacío = válido)
    */
@@ -77,9 +77,25 @@ class ProductoClientController extends ApiClient {
     if (!f.nombre.trim()) e.nombre = 'El nombre es obligatorio'
     if (!f.categoria) e.categoria = 'Seleccione una categoría'
     if (f.precio === null || !(Number(f.precio) > 0)) e.precio = 'El precio debe ser mayor a 0 Bs.'
-    if (f.stock === null || !Number.isInteger(Number(f.stock)) || Number(f.stock) <= 0) e.stock = 'El stock debe ser un entero mayor a 0'
+    if (f.stock === null || !Number.isInteger(Number(f.stock)) || Number(f.stock) < 0) e.stock = 'El stock debe ser un número entero igual o mayor a 0'
     if (!/^https?:\/\/.+/.test(f.imagenUrl.trim())) e.imagenUrl = 'La imagen es obligatoria (URL http/https)'
     return e
+  }
+
+  /**
+   * Comprueba que la URL realmente sea una imagen que el navegador puede mostrar,
+   * para que no aparezcan tarjetas sin foto en el catálogo.
+   * @param url dirección pegada por el administrador
+   * @returns true si la imagen cargó; false si falló o tardó más de 8 s
+   */
+  verificarImagen(url: string): Promise<boolean> {
+    return new Promise(resolve => {
+      const img = new Image()
+      const limite = setTimeout(() => resolve(false), 8000)
+      img.onload = () => { clearTimeout(limite); resolve(img.naturalWidth > 0) }
+      img.onerror = () => { clearTimeout(limite); resolve(false) }
+      img.src = url.trim()
+    })
   }
 
   /** POST /validacion — el servidor valida y verifica código duplicado SIN guardar. */

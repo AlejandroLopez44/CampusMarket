@@ -67,6 +67,7 @@ interface ItemLocal {
 interface Http {
   get<T>(ruta: string): Promise<T>
   post<T>(ruta: string, cuerpo?: unknown): Promise<T>
+  eliminar<T>(ruta: string): Promise<T>
 }
 
 /** Contrato común de los almacenes de carrito (abstracción de la que depende el controlador). */
@@ -74,6 +75,7 @@ interface AlmacenCarrito {
   consultar(): Promise<Carrito>
   verificar(productoId: number, cantidad: number): Promise<Disponibilidad>
   agregar(productoId: number, cantidad: number): Promise<RespuestaApi<Carrito>>
+  vaciar(): Promise<void>
 }
 
 const CARRITO_VACIO: Carrito = { items: [], cantidadTotal: 0, total: 0, moneda: 'Bs.', vacio: true }
@@ -98,6 +100,11 @@ class AlmacenServidor implements AlmacenCarrito {
   /** POST /api/carrito/items: el servidor re-verifica el stock y guarda. */
   agregar(productoId: number, cantidad: number): Promise<RespuestaApi<Carrito>> {
     return this.http.post<RespuestaApi<Carrito>>('/items', { productoId, cantidad })
+  }
+
+  /** DELETE /api/carrito: vacía el carrito guardado en la BD. */
+  async vaciar(): Promise<void> {
+    await this.http.eliminar('')
   }
 }
 
@@ -131,8 +138,8 @@ class AlmacenInvitado implements AlmacenCarrito {
     }
   }
 
-  /** Borra el carrito del navegador (tras unirlo al de la cuenta). */
-  vaciar(): void {
+  /** Borra el carrito del navegador (tras unirlo al de la cuenta, o cuando el usuario lo vacía). */
+  async vaciar(): Promise<void> {
     this.escribir([])
   }
 
@@ -168,7 +175,7 @@ class AlmacenInvitado implements AlmacenCarrito {
     if (existente) existente.cantidad += cantidad
     else items.push({ productoId, cantidad })
     this.escribir(items)
-    return { mensaje: 'Producto agregado al carrito.', datos: await this.consultar() }
+    return { mensaje: 'Producto agregado al carrito exitosamente', datos: await this.consultar() }
   }
 }
 
@@ -186,7 +193,7 @@ class CarritoClientController extends ApiClient {
   constructor() {
     super('/api/carrito')
     // Se prestan los métodos HTTP protegidos a las estrategias (inyección por constructor).
-    const http: Http = { get: r => this.get(r), post: (r, c) => this.post(r, c) }
+    const http: Http = { get: r => this.get(r), post: (r, c) => this.post(r, c), eliminar: r => this.eliminar(r) }
     this.invitado = new AlmacenInvitado(http)
     this.servidor = new AlmacenServidor(http)
     this.almacen = this.invitado
@@ -251,6 +258,16 @@ class CarritoClientController extends ApiClient {
     this.invitado.vaciar()
     this.actualizarEstado(r.datos)
     return r.mensaje
+  }
+
+  /**
+   * Vacía el carrito del modo actual (navegador o BD) y pone el ícono en 0.
+   * Salida para no quedar atrapado si un producto se quedó sin stock al comprar.
+   */
+  async vaciar(): Promise<void> {
+    if (!this.habilitado) return
+    await this.almacen.vaciar()
+    this.actualizarEstado(CARRITO_VACIO)
   }
 
   /** Tras generar una orden, el backend vacía el carrito guardado: se refleja aquí. */

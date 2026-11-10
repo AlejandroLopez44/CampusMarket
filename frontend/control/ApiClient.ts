@@ -88,6 +88,11 @@ export abstract class ApiClient {
   protected post<T>(ruta = '', cuerpo?: unknown): Promise<T> {
     return this.request<T>(ruta, { method: 'POST', body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) })
   }
+
+  /** Atajo DELETE (borrar un recurso; p. ej. vaciar el carrito). */
+  protected eliminar<T>(ruta = ''): Promise<T> {
+    return this.request<T>(ruta, { method: 'DELETE' })
+  }
 }
 
 /**

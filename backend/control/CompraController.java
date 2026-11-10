@@ -165,8 +165,10 @@ class CompraServiceImpl implements CompraService {
         for (CarritoItem item : carrito.getItems()) {
             Producto p = item.getProducto();
             if (!p.tieneStock(item.getCantidad())) {
-                throw new NegocioException(HttpStatus.CONFLICT,
-                        "Stock insuficiente del " + p.getNombre() + " (disponible: " + p.getStock() + ").");
+                // Texto del criterio 4 de "Generar compra". No se ofrece ajustar cantidades
+                // (Sprint 2); la vista permite salir o vaciar el carrito para no quedar atrapado.
+                throw new NegocioException(HttpStatus.CONFLICT, "Stock insuficiente en el producto " + p.getNombre(),
+                        java.util.Map.of("stockActual", p.getStock()));
             }
         }
 

@@ -52,6 +52,9 @@ import model.UsuarioModel.UsuarioRepository;
 @RequestMapping("/api/carrito")
 public class CarritoController {
 
+    /** Texto exacto del criterio de aceptación 4 de "Agregar producto al carrito". */
+    static final String MENSAJE_AGREGADO = "Producto agregado al carrito exitosamente";
+
     private final CarritoService carritoService;
     private final SesionActiva sesionActiva;
 
@@ -87,7 +90,7 @@ public class CarritoController {
     @PostMapping("/items")
     RespuestaApi<CarritoResponse> agregar(@Valid @RequestBody AgregarItemRequest req, HttpSession sesion) {
         CarritoResponse carrito = carritoService.agregar(sesionActiva.exigirEstudiante(sesion), req);
-        return new RespuestaApi<>("Producto agregado al carrito.", carrito);
+        return new RespuestaApi<>(MENSAJE_AGREGADO, carrito);
     }
 
     /**
@@ -111,6 +114,16 @@ public class CarritoController {
         return carritoService.fusionar(sesionActiva.exigirEstudiante(sesion), req);
     }
 
+    /**
+     * DELETE /api/carrito — vacía el carrito del estudiante.
+     * Es la salida que evita quedar atrapado cuando un producto se quedó sin stock
+     * al generar la compra (modificar cantidades una por una es del Sprint 2).
+     */
+    @DeleteMapping
+    RespuestaApi<CarritoResponse> vaciar(HttpSession sesion) {
+        return new RespuestaApi<>("Se vació tu carrito.", carritoService.vaciar(sesionActiva.exigirEstudiante(sesion)));
+    }
+
     /** El administrador no compra: cualquier operación de carrito le responde 403. */
     private void bloquearAdministrador(HttpSession sesion) {
         if (sesionActiva.esAdministrador(sesion)) {
@@ -131,6 +144,7 @@ interface CarritoService {
     CarritoResponse agregar(Long usuarioId, AgregarItemRequest req);
     CarritoResponse cotizar(ListaItemsRequest req);
     RespuestaApi<CarritoResponse> fusionar(Long usuarioId, ListaItemsRequest req);
+    CarritoResponse vaciar(Long usuarioId);
 }
 
 @Service
@@ -249,6 +263,17 @@ class CarritoServiceImpl implements CarritoService {
         return new RespuestaApi<>(mensaje, respuesta);
     }
 
+    /** Vacía el carrito guardado (si existe). Reutiliza el comportamiento de la entidad: Carrito.vaciar(). */
+    @Override
+    @Transactional
+    public CarritoResponse vaciar(Long usuarioId) {
+        carritos.buscarPorUsuario(usuarioId).ifPresent(c -> {
+            c.vaciar();
+            carritos.save(c);
+        });
+        return CarritoResponse.sinItems();
+    }
+
     /** Carrito guardado del estudiante, o uno nuevo si aún no tiene. */
     private Carrito obtenerOCrear(Long usuarioId) {
         return carritos.buscarPorUsuario(usuarioId)
@@ -273,8 +298,9 @@ class CarritoServiceImpl implements CarritoService {
         } else if (total > CarritoModel.MAX_UNIDADES_POR_ITEM && p.tieneStock(total)) {
             mensaje = "Máximo " + CarritoModel.MAX_UNIDADES_POR_ITEM + " unidades por producto en el carrito.";
         } else {
-            mensaje = "Stock insuficiente de " + p.getNombre() + ". Stock actual: " + p.getStock() + " unidad(es)"
-                    + (enCarrito > 0 ? " (ya tienes " + enCarrito + " en tu carrito)." : ".");
+            // Texto del criterio 3 de la HU: "Cantidad no disponible. Stock actual: [Cantidad]".
+            mensaje = "Cantidad no disponible. Stock actual: " + p.getStock()
+                    + (enCarrito > 0 ? " (ya tienes " + enCarrito + " en tu carrito)" : "");
         }
         return new DisponibilidadResponse(p.getId(), p.getNombre(), cantidad, enCarrito, p.getStock(),
                 disponible, subtotal, mensaje);

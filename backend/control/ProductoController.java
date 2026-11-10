@@ -122,7 +122,7 @@ class ProductoServiceImpl implements ProductoService {
     }
 
     /**
-     * Reglas HU-03 que requieren la BD. Las de formato (precio > 0, stock > 0,
+     * Reglas HU-03 que requieren la BD. Las de formato (precio > 0, stock ≥ 0,
      * imagen obligatoria) ya las garantizó @Valid sobre ProductoRequest.
      * Se repite precio/stock como defensa por si el servicio se invoca sin @Valid.
      */
@@ -132,13 +132,13 @@ class ProductoServiceImpl implements ProductoService {
         if (req.precio() == null || req.precio().signum() <= 0) {
             throw new NegocioException(HttpStatus.BAD_REQUEST, "El precio debe ser mayor a 0 Bs.");
         }
-        if (req.stock() == null || req.stock() <= 0) {
-            throw new NegocioException(HttpStatus.BAD_REQUEST, "El stock debe ser mayor a 0.");
+        if (req.stock() == null || req.stock() < 0) {
+            throw new NegocioException(HttpStatus.BAD_REQUEST, "El stock no puede ser menor a 0.");
         }
         if (productos.existsByCodigoIgnoreCase(req.codigo().trim())) {
-            // Rama "[el producto existe]" del diagrama.
+            // Rama "[el producto existe]" del diagrama → criterio 1: alerta de "producto duplicado".
             throw new NegocioException(HttpStatus.CONFLICT,
-                    "El producto con código " + req.codigo().trim().toUpperCase() + " ya existe en el catálogo.");
+                    "Producto duplicado: el código " + req.codigo().trim().toUpperCase() + " ya existe en el catálogo.");
         }
     }
 

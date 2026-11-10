@@ -111,7 +111,8 @@ public final class ProductoModel {
 
     /**
      * Formulario "Registro de nuevo producto" (HU-03).
-     * Reglas: precio > 0, stock > 0, código obligatorio e imagen obligatoria.
+     * Reglas (criterios de la HU): precio > 0, stock no negativo (0 = el producto
+     * se publica como "Agotado"), código obligatorio e imagen obligatoria (URL).
      * La unicidad del código se valida en el servicio (requiere consultar la BD).
      */
     public record ProductoRequest(
@@ -136,7 +137,7 @@ public final class ProductoModel {
             BigDecimal precio,
 
             @NotNull(message = "El stock es obligatorio")
-            @Positive(message = "El stock debe ser mayor a 0")
+            @PositiveOrZero(message = "El stock no puede ser menor a 0")
             Integer stock,
 
             @NotBlank(message = "La imagen del producto es obligatoria")
