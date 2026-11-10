@@ -1,0 +1,10 @@
+/* Hoja de estilos global: solo importa Tailwind CSS v4 y define el color de marca. */
+@import "tailwindcss";
+
+@theme {
+  --color-marca-50: #eef2ff;
+  --color-marca-100: #e0e7ff;
+  --color-marca-500: #6366f1;
+  --color-marca-600: #4f46e5;
+  --color-marca-700: #4338ca;
+}
