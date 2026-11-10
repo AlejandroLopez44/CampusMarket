@@ -17,6 +17,7 @@ import { computed, onMounted, ref } from 'vue'
 import { resenaController, MAX_CARACTERES_RESENA, type ListaResenas } from '../control/ResenaClientController'
 import { usuarioController } from '../control/UsuarioClientController'
 import { formatearFecha } from '../control/ApiClient'
+import Icono from './Icono.vue'
 
 const props = defineProps<{ productoId: number; productoNombre: string }>()
 const emit = defineEmits<{ cerrar: [] }>()
@@ -35,6 +36,15 @@ const mensaje = ref<{ tipo: 'exito' | 'error'; texto: string } | null>(null)
 const rol = computed(() => usuarioController.estado.usuario?.rol ?? null)
 const esEstudiante = computed(() => rol.value === 'ESTUDIANTE')
 const restantes = computed(() => MAX_CARACTERES_RESENA - texto.value.length)
+
+/** Calificación promedio de las reseñas listadas (null si no hay). Solo presentación. */
+const promedio = computed(() => {
+  const lista = datos.value?.resenas ?? []
+  return lista.length ? lista.reduce((suma, r) => suma + r.calificacion, 0) / lista.length : null
+})
+
+/** Texto de ayuda para cada calificación al pasar el cursor por las estrellas. */
+const etiquetasEstrellas = ['Muy malo', 'Malo', 'Regular', 'Bueno', 'Excelente']
 
 /** HU-01: consulta las reseñas del producto (el mensaje de vacío lo provee el backend). */
 async function cargar(): Promise<void> {
@@ -77,59 +87,77 @@ onMounted(cargar)
 </script>
 
 <template>
-  <div class="fixed inset-0 z-40 flex items-end justify-center bg-black/50 p-4 sm:items-center" @click.self="emit('cerrar')">
-    <div class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
-      <div class="mb-4 flex items-start justify-between gap-2">
-        <h2 class="text-xl font-bold">Reseñas de {{ productoNombre }}</h2>
-        <button class="rounded-lg px-2 text-xl text-slate-500 hover:bg-slate-100" aria-label="Cerrar" @click="emit('cerrar')">✕</button>
+  <div class="animar-fondo fixed inset-0 z-40 flex items-end justify-center bg-tinta/60 backdrop-blur-sm sm:items-center sm:p-4" @click.self="emit('cerrar')">
+    <div class="animar-entrada flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-elevada sm:rounded-3xl" role="dialog" aria-modal="true" :aria-label="`Reseñas de ${productoNombre}`">
+      <!-- Cabecera con promedio -->
+      <div class="flex items-start justify-between gap-3 border-b border-slate-100 p-6">
+        <div class="min-w-0">
+          <p class="eyebrow">Reseñas</p>
+          <h2 class="mt-1 truncate text-xl font-extrabold">{{ productoNombre }}</h2>
+          <p v-if="promedio !== null" class="mt-2 flex items-center gap-2 text-sm text-slate-600">
+            <span class="flex text-acento-500">
+              <Icono v-for="n in 5" :key="n" nombre="estrella" :tamano="16" :class="n <= Math.round(promedio) ? 'fill-current' : 'text-slate-300'" />
+            </span>
+            <strong class="text-tinta">{{ promedio.toFixed(1) }}</strong> de 5 · {{ datos?.resenas.length }} reseña(s)
+          </p>
+        </div>
+        <button class="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-tinta" aria-label="Cerrar" @click="emit('cerrar')"><Icono nombre="cerrar" /></button>
       </div>
 
-      <!-- HU-01: lista o estado vacío -->
-      <p v-if="cargando" class="text-slate-500">Buscando reseñas…</p>
-      <p v-else-if="errorCarga" class="rounded-lg bg-red-50 p-3 text-red-700">{{ errorCarga }}</p>
-      <p v-else-if="datos?.vacia" class="rounded-lg bg-slate-100 p-4 text-center text-slate-600">{{ datos.mensaje }}</p>
-      <ul v-else class="space-y-3">
-        <li v-for="r in datos?.resenas" :key="r.id" class="rounded-xl border border-slate-200 p-3">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <strong>{{ r.autor }}</strong>
-            <span class="text-sm text-slate-500">{{ formatearFecha(r.fecha) }}</span>
-          </div>
-          <div class="text-amber-500" :aria-label="`${r.calificacion} de 5 estrellas`">
-            {{ '★'.repeat(r.calificacion) }}<span class="text-slate-300">{{ '★'.repeat(5 - r.calificacion) }}</span>
-          </div>
-          <p class="mt-1 whitespace-pre-line text-slate-700">{{ r.texto }}</p>
-        </li>
-      </ul>
+      <div class="flex-1 overflow-y-auto p-6">
+        <!-- HU-01: lista o estado vacío -->
+        <div v-if="cargando" class="space-y-3"><div v-for="n in 2" :key="n" class="h-20 animate-pulse rounded-2xl bg-slate-100" /></div>
+        <p v-else-if="errorCarga" class="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-red-700"><Icono nombre="alerta" :tamano="18" /> {{ errorCarga }}</p>
+        <div v-else-if="datos?.vacia" class="flex flex-col items-center gap-2 rounded-2xl bg-slate-50 px-4 py-8 text-center">
+          <span class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-suave"><Icono nombre="estrella" :tamano="22" /></span>
+          <p class="font-semibold text-slate-600">{{ datos.mensaje }}</p>
+        </div>
+        <ul v-else class="space-y-3">
+          <li v-for="r in datos?.resenas" :key="r.id" class="rounded-2xl border border-slate-200/70 p-4">
+            <div class="flex items-center gap-3">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-marca-100 text-sm font-bold text-marca-800">{{ r.autor.charAt(0).toUpperCase() }}</span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate font-semibold">{{ r.autor }}</p>
+                <p class="text-xs text-slate-500">{{ formatearFecha(r.fecha) }}</p>
+              </div>
+              <span class="flex text-acento-500" :aria-label="`${r.calificacion} de 5 estrellas`">
+                <Icono v-for="n in 5" :key="n" nombre="estrella" :tamano="15" :class="n <= r.calificacion ? 'fill-current' : 'text-slate-300'" />
+              </span>
+            </div>
+            <p class="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-700">{{ r.texto }}</p>
+          </li>
+        </ul>
 
-      <hr class="my-5 border-slate-200" />
-
-      <!-- HU-10: insertar reseña (solo estudiantes) -->
-      <div v-if="esEstudiante">
-        <h3 class="mb-2 font-bold">Escribir una reseña</h3>
-        <p v-if="mensaje" :class="['mb-3 rounded-lg p-3 text-sm', mensaje.tipo === 'exito' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700']">
-          {{ mensaje.texto }}
-        </p>
-        <form class="space-y-3" @submit.prevent="publicar">
-          <div class="flex gap-1" role="radiogroup" aria-label="Calificación">
-            <button v-for="n in 5" :key="n" type="button" :aria-label="`${n} estrellas`"
-                    :class="['text-3xl leading-none', n <= calificacion ? 'text-amber-500' : 'text-slate-300']"
-                    @click="calificacion = n">★</button>
-          </div>
-          <textarea v-model="texto" rows="3" :maxlength="MAX_CARACTERES_RESENA" placeholder="¿Qué te pareció el producto?"
-                    class="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-marca-500" />
-          <div class="flex items-center justify-between">
-            <span :class="['text-xs', restantes < 50 ? 'text-red-600' : 'text-slate-500']">{{ restantes }} caracteres restantes</span>
-            <button type="submit" :disabled="enviando" class="rounded-lg bg-marca-600 px-4 py-2 font-semibold text-white hover:bg-marca-700 disabled:opacity-50">
-              Publicar reseña
-            </button>
-          </div>
-        </form>
+        <!-- HU-10: insertar reseña (solo estudiantes) -->
+        <div v-if="esEstudiante" class="mt-6 rounded-2xl bg-slate-50 p-5">
+          <h3 class="font-bold">Escribe tu reseña</h3>
+          <p class="text-xs text-slate-500">Solo puedes reseñar productos que hayas comprado (una reseña por producto).</p>
+          <p v-if="mensaje" :class="['mt-3 flex items-start gap-2 rounded-xl p-3 text-sm font-medium', mensaje.tipo === 'exito' ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700']">
+            <Icono :nombre="mensaje.tipo === 'exito' ? 'check' : 'alerta'" :tamano="18" /> {{ mensaje.texto }}
+          </p>
+          <form class="mt-3 space-y-3" @submit.prevent="publicar">
+            <div class="flex items-center gap-3">
+              <div class="flex" role="radiogroup" aria-label="Calificación">
+                <button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="calificacion === n" :aria-label="`${n} estrellas: ${etiquetasEstrellas[n - 1]}`"
+                        :title="etiquetasEstrellas[n - 1]" class="p-0.5 transition hover:scale-110" @click="calificacion = n">
+                  <Icono nombre="estrella" :tamano="28" :class="n <= calificacion ? 'fill-current text-acento-500' : 'text-slate-300'" />
+                </button>
+              </div>
+              <span class="text-sm font-semibold text-slate-600">{{ etiquetasEstrellas[calificacion - 1] }}</span>
+            </div>
+            <textarea v-model="texto" rows="3" :maxlength="MAX_CARACTERES_RESENA" placeholder="¿Qué te pareció el producto?" class="campo" />
+            <div class="flex items-center justify-between gap-3">
+              <span :class="['text-xs tabular-nums', restantes < 50 ? 'font-semibold text-red-600' : 'text-slate-500']">{{ restantes }} caracteres restantes</span>
+              <button type="submit" :disabled="enviando" class="btn-primario">{{ enviando ? 'Publicando…' : 'Publicar reseña' }}</button>
+            </div>
+          </form>
+        </div>
+        <p v-else-if="rol === 'ADMINISTRADOR'" class="mt-6 flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600"><Icono nombre="escudo" :tamano="18" /> Vista de administrador: las reseñas se muestran en modo lectura.</p>
+        <p v-else class="mt-6 flex items-center gap-2 rounded-xl bg-marca-50 p-3 text-sm text-marca-800"><Icono nombre="info" :tamano="18" /> Inicia sesión como estudiante para escribir una reseña de un producto que hayas comprado.</p>
       </div>
-      <p v-else-if="rol === 'ADMINISTRADOR'" class="text-sm text-slate-500">Vista de administrador: las reseñas se muestran en modo lectura.</p>
-      <p v-else class="text-sm text-slate-500">Inicia sesión como estudiante para escribir una reseña de un producto que hayas comprado.</p>
 
-      <div class="mt-5 text-right">
-        <button class="rounded-lg bg-slate-200 px-4 py-2 font-semibold hover:bg-slate-300" @click="emit('cerrar')">OK</button>
+      <div class="border-t border-slate-100 p-4 text-right">
+        <button class="btn-secundario" @click="emit('cerrar')">OK</button>
       </div>
     </div>
   </div>

@@ -12,6 +12,7 @@
   =====================================================================
 -->
 <script setup lang="ts">
+import Icono from './Icono.vue'
 import type { BotonDialogo } from '../control/NavegacionController'
 
 withDefaults(defineProps<{
@@ -28,38 +29,37 @@ withDefaults(defineProps<{
 /** Emite el `valor` del botón pulsado (p. ej. "confirmar", "cancelar", "salir"). */
 const emit = defineEmits<{ accion: [valor: string] }>()
 
-/** Ícono y color según el tipo de mensaje (solo presentación). */
-const iconos = { info: 'ℹ️', exito: '✅', error: '⚠️', confirmar: '❓' } as const
+/** Ícono y colores según el tipo de mensaje (solo presentación). */
+const apariencia = {
+  info: { icono: 'info', clase: 'bg-marca-50 text-marca-700' },
+  exito: { icono: 'check', clase: 'bg-emerald-50 text-emerald-600' },
+  error: { icono: 'alerta', clase: 'bg-red-50 text-red-600' },
+  confirmar: { icono: 'pregunta', clase: 'bg-acento-100 text-amber-700' },
+} as const
 
-/** Clases Tailwind por estilo de botón. */
+/** Clase del sistema visual por estilo de botón. */
 function claseBoton(estilo: BotonDialogo['estilo'] = 'primario'): string {
-  return {
-    primario: 'bg-marca-600 text-white hover:bg-marca-700',
-    secundario: 'bg-slate-200 text-slate-800 hover:bg-slate-300',
-    peligro: 'bg-red-600 text-white hover:bg-red-700',
-  }[estilo]
+  return { primario: 'btn-primario', secundario: 'btn-secundario', peligro: 'btn-peligro' }[estilo]
 }
 </script>
 
 <template>
   <!-- role="dialog" + aria-modal: accesibilidad para lectores de pantalla -->
-  <div class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center" role="dialog" aria-modal="true">
-    <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-      <div class="flex items-start gap-3">
-        <span class="text-2xl" aria-hidden="true">{{ iconos[tipo] }}</span>
-        <div class="flex-1">
-          <h3 class="text-lg font-bold text-slate-900">{{ titulo }}</h3>
-          <p v-if="mensaje" class="mt-1 whitespace-pre-line text-slate-600">{{ mensaje }}</p>
+  <div class="animar-fondo fixed inset-0 z-50 flex items-end justify-center bg-tinta/60 p-4 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" :aria-label="titulo">
+    <div class="animar-entrada w-full max-w-md rounded-3xl bg-white p-6 shadow-elevada">
+      <div class="flex items-start gap-4">
+        <span :class="['flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl', apariencia[tipo].clase]">
+          <Icono :nombre="apariencia[tipo].icono" :tamano="22" :grosor="2" />
+        </span>
+        <div class="min-w-0 flex-1 pt-1">
+          <h3 class="text-lg font-bold text-tinta">{{ titulo }}</h3>
+          <p v-if="mensaje" class="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-slate-600">{{ mensaje }}</p>
           <!-- Contenido adicional opcional (p. ej. un resumen) -->
           <slot />
         </div>
       </div>
       <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <button
-          v-for="b in botones" :key="b.valor" type="button"
-          :class="['rounded-lg px-4 py-2 font-semibold transition', claseBoton(b.estilo)]"
-          @click="emit('accion', b.valor)"
-        >{{ b.texto }}</button>
+        <button v-for="b in botones" :key="b.valor" type="button" :class="claseBoton(b.estilo)" @click="emit('accion', b.valor)">{{ b.texto }}</button>
       </div>
     </div>
   </div>

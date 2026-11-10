@@ -1,10 +1,102 @@
-/* Hoja de estilos global: solo importa Tailwind CSS v4 y define el color de marca. */
+/*
+  =====================================================================
+  estilos.css — Sistema visual de CampusMarket (capa VIEW).
+  ---------------------------------------------------------------------
+  Responsabilidad única: definir la identidad visual (colores, tipografía,
+  fondo) y los componentes reutilizables (botones, tarjetas, campos,
+  insignias). Las vistas usan estas clases para verse consistentes.
+
+  Identidad: azul profundo (confianza institucional UCAB) + ámbar
+  (acento cálido para llamados a la acción y destacados).
+  =====================================================================
+*/
 @import "tailwindcss";
 
 @theme {
-  --color-marca-50: #eef2ff;
-  --color-marca-100: #e0e7ff;
-  --color-marca-500: #6366f1;
-  --color-marca-600: #4f46e5;
-  --color-marca-700: #4338ca;
+  /* Tipografías: Plus Jakarta Sans (texto) y Sora (títulos), con respaldo del sistema */
+  --font-sans: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-titulo: "Sora", "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+
+  /* Color de marca: azul profundo */
+  --color-marca-50: #eef3ff;
+  --color-marca-100: #dbe5ff;
+  --color-marca-200: #bccdff;
+  --color-marca-300: #8eabff;
+  --color-marca-400: #5a7ff5;
+  --color-marca-500: #3b5fe0;
+  --color-marca-600: #2546c4;
+  --color-marca-700: #1e3a9e;
+  --color-marca-800: #1e3a8a;
+  --color-marca-900: #172a63;
+
+  /* Acento cálido */
+  --color-acento-100: #fef3c7;
+  --color-acento-300: #fcd34d;
+  --color-acento-400: #fbbf24;
+  --color-acento-500: #f59e0b;
+
+  /* Neutros con un leve tinte azulado (coherentes con la marca) */
+  --color-tinta: #0f1a33;
+  --color-fondo: #f4f6fb;
+
+  --shadow-suave: 0 1px 2px rgb(15 26 51 / 0.05), 0 4px 16px -4px rgb(15 26 51 / 0.08);
+  --shadow-elevada: 0 2px 4px rgb(15 26 51 / 0.06), 0 16px 40px -12px rgb(15 26 51 / 0.22);
 }
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  body {
+    @apply bg-fondo font-sans text-tinta antialiased;
+    /* Fondo con un resplandor sutil de marca en la parte superior */
+    background-image:
+      radial-gradient(60rem 30rem at 85% -10%, rgb(59 95 224 / 0.10), transparent 70%),
+      radial-gradient(40rem 24rem at -10% 0%, rgb(251 191 36 / 0.10), transparent 70%);
+    background-attachment: fixed;
+  }
+  h1, h2, h3 { @apply font-titulo tracking-tight; text-wrap: balance; }
+  /* Foco visible y consistente para teclado (accesibilidad) */
+  :focus-visible { @apply outline-2 outline-offset-2 outline-marca-500; }
+  /* Respeta a quien prefiere menos movimiento */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}
+
+@layer components {
+  /* ---------- Botones ---------- */
+  /* Base común de todos los botones (se agrupan los selectores: en Tailwind v4 no se aplica una clase propia dentro de otra) */
+  .btn-primario, .btn-secundario, .btn-acento, .btn-peligro, .btn-fantasma {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold
+           transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primario { @apply bg-marca-700 text-white shadow-suave hover:bg-marca-800; }
+  .btn-secundario { @apply border border-slate-200 bg-white text-tinta hover:border-slate-300 hover:bg-slate-50; }
+  .btn-acento { @apply bg-acento-400 text-tinta shadow-suave hover:bg-acento-500; }
+  .btn-peligro { @apply bg-red-600 text-white hover:bg-red-700; }
+  .btn-fantasma { @apply text-marca-700 hover:bg-marca-50; }
+
+  /* ---------- Superficies ---------- */
+  .tarjeta { @apply rounded-2xl border border-slate-200/70 bg-white shadow-suave; }
+
+  /* ---------- Formularios ---------- */
+  .campo {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm outline-none transition
+           placeholder:text-slate-400 focus:border-marca-500 focus:ring-4 focus:ring-marca-100;
+  }
+  .campo-error { @apply border-red-500 focus:border-red-500 focus:ring-red-100; }
+  .etiqueta { @apply mb-1 block text-sm font-semibold text-slate-700; }
+  .ayuda { @apply mt-1 text-xs text-slate-500; }
+  .error-texto { @apply mt-1 text-sm font-medium text-red-600; }
+
+  /* ---------- Insignias ---------- */
+  .insignia { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold; }
+
+  /* ---------- Títulos de sección ---------- */
+  .eyebrow { @apply text-xs font-bold uppercase tracking-[0.14em] text-marca-600; }
+}
+
+/* Animaciones suaves para modales y avisos */
+@keyframes aparecer { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes fundido { from { opacity: 0; } to { opacity: 1; } }
+.animar-entrada { animation: aparecer 0.22s ease-out; }
+.animar-fondo { animation: fundido 0.18s ease-out; }

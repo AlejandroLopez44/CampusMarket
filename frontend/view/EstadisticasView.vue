@@ -18,6 +18,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { estadisticasController, type Estadisticas, type OrdenReciente } from '../control/EstadisticasClientController'
 import { formatearBs, formatearFecha } from '../control/ApiClient'
+import Icono from './Icono.vue'
 import type { Destino } from '../control/NavegacionController'
 
 const emit = defineEmits<{ navegar: [destino: Destino] }>()
@@ -62,12 +63,13 @@ onMounted(cargar)
   <section>
     <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h1 class="text-2xl font-bold">Panel del administrador</h1>
-        <p class="text-slate-500">Ventas, inventario y órdenes de CampusMarket · Montos en bolívares</p>
+        <p class="eyebrow">Administración</p>
+        <h1 class="mt-1 text-3xl font-extrabold">Panel del negocio</h1>
+        <p class="mt-1 text-slate-500">Ventas, inventario y órdenes de CampusMarket · Montos en bolívares</p>
       </div>
       <div class="flex gap-2">
-        <button class="rounded-lg bg-slate-200 px-4 py-2 font-semibold hover:bg-slate-300" @click="cargar">Actualizar</button>
-        <button class="rounded-lg bg-marca-600 px-4 py-2 font-semibold text-white hover:bg-marca-700" @click="emit('navegar', 'productos')">Gestionar catálogo</button>
+        <button class="btn-secundario" :disabled="cargando" @click="cargar"><Icono nombre="actualizar" :tamano="16" :class="cargando ? 'animate-spin' : ''" /> Actualizar</button>
+        <button class="btn-primario" @click="emit('navegar', 'productos')"><Icono nombre="catalogo" :tamano="16" /> Gestionar catálogo</button>
       </div>
     </div>
 
@@ -79,31 +81,31 @@ onMounted(cargar)
     <template v-else-if="datos">
       <!-- ===== Indicadores principales ===== -->
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="rounded-2xl bg-white p-5 shadow-sm">
-          <p class="text-sm text-slate-500">Ventas (órdenes pagadas)</p>
-          <p class="mt-1 text-2xl font-bold tabular-nums text-emerald-600">{{ formatearBs(datos.ventasPagadas) }}</p>
+        <div class="tarjeta p-5">
+          <p class="flex items-center justify-between text-sm font-semibold text-slate-500">Ventas (órdenes pagadas) <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600"><Icono nombre="billete" :tamano="18" /></span></p>
+          <p class="mt-2 font-titulo text-2xl font-extrabold tabular-nums text-emerald-600">{{ formatearBs(datos.ventasPagadas) }}</p>
           <p class="text-xs text-slate-500">{{ datos.ordenesPagadas }} orden(es) pagada(s)</p>
         </div>
-        <div class="rounded-2xl bg-white p-5 shadow-sm">
-          <p class="text-sm text-slate-500">Pendiente de cobro</p>
-          <p class="mt-1 text-2xl font-bold tabular-nums text-amber-600">{{ formatearBs(datos.montoPendiente) }}</p>
+        <div class="tarjeta p-5">
+          <p class="flex items-center justify-between text-sm font-semibold text-slate-500">Pendiente de cobro <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-acento-100 text-amber-700"><Icono nombre="reloj" :tamano="18" /></span></p>
+          <p class="mt-2 font-titulo text-2xl font-extrabold tabular-nums text-amber-600">{{ formatearBs(datos.montoPendiente) }}</p>
           <p class="text-xs text-slate-500">{{ datos.ordenesPendientes }} orden(es) pendiente(s) de pago</p>
         </div>
-        <div class="rounded-2xl bg-white p-5 shadow-sm">
-          <p class="text-sm text-slate-500">Ticket promedio</p>
-          <p class="mt-1 text-2xl font-bold tabular-nums">{{ formatearBs(datos.ticketPromedio) }}</p>
+        <div class="tarjeta p-5">
+          <p class="flex items-center justify-between text-sm font-semibold text-slate-500">Ticket promedio <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-marca-50 text-marca-700"><Icono nombre="factura" :tamano="18" /></span></p>
+          <p class="mt-2 font-titulo text-2xl font-extrabold tabular-nums">{{ formatearBs(datos.ticketPromedio) }}</p>
           <p class="text-xs text-slate-500">{{ datos.ordenesTotales }} orden(es) en total</p>
         </div>
-        <div class="rounded-2xl bg-white p-5 shadow-sm">
-          <p class="text-sm text-slate-500">Catálogo y comunidad</p>
-          <p class="mt-1 text-2xl font-bold tabular-nums">{{ datos.productos }} <span class="text-base font-medium text-slate-500">productos</span></p>
+        <div class="tarjeta p-5">
+          <p class="flex items-center justify-between text-sm font-semibold text-slate-500">Catálogo y comunidad <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><Icono nombre="usuarios" :tamano="18" /></span></p>
+          <p class="mt-2 font-titulo text-2xl font-extrabold tabular-nums">{{ datos.productos }} <span class="text-base font-medium text-slate-500">productos</span></p>
           <p class="text-xs text-slate-500">{{ datos.estudiantes }} estudiante(s) registrado(s)</p>
         </div>
       </div>
 
       <div class="mt-6 grid gap-6 lg:grid-cols-3">
         <!-- ===== Ventas de los últimos 7 días (barras apiladas: pagado + pendiente) ===== -->
-        <div class="rounded-2xl bg-white p-5 shadow-sm lg:col-span-2">
+        <div class="tarjeta p-5 lg:col-span-2">
           <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h2 class="font-bold">Ventas de los últimos 7 días</h2>
             <div class="flex gap-3 text-xs text-slate-600">
@@ -129,7 +131,7 @@ onMounted(cargar)
         </div>
 
         <!-- ===== Alertas de inventario ===== -->
-        <div class="rounded-2xl bg-white p-5 shadow-sm">
+        <div class="tarjeta p-5">
           <h2 class="font-bold">Inventario</h2>
           <p class="mb-3 text-sm text-slate-500">
             <span :class="datos.agotados > 0 ? 'font-semibold text-red-600' : ''">{{ datos.agotados }} agotado(s)</span>
@@ -152,7 +154,7 @@ onMounted(cargar)
 
       <div class="mt-6 grid gap-6 lg:grid-cols-3">
         <!-- ===== Más vendidos ===== -->
-        <div class="rounded-2xl bg-white p-5 shadow-sm">
+        <div class="tarjeta p-5">
           <h2 class="mb-3 font-bold">Productos más vendidos</h2>
           <p v-if="datos.masVendidos.length === 0" class="text-sm text-slate-500">Todavía no hay ventas registradas.</p>
           <ol v-else class="space-y-2">
@@ -174,7 +176,7 @@ onMounted(cargar)
         </div>
 
         <!-- ===== Órdenes recientes de todos los estudiantes ===== -->
-        <div class="rounded-2xl bg-white p-5 shadow-sm lg:col-span-2">
+        <div class="tarjeta p-5 lg:col-span-2">
           <h2 class="mb-3 font-bold">Órdenes recientes</h2>
           <p v-if="datos.ordenesRecientes.length === 0" class="text-sm text-slate-500">Aún no hay órdenes registradas.</p>
           <div v-else class="overflow-x-auto">
